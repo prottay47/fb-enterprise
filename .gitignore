@@ -15,8 +15,12 @@ $RECYCLE.BIN/
 # Editor directories and files
 .idea/
 .vscode/
+.claude/
 *.sublime-project
 *.sublime-workspace
 *.swp
 *.swo
 *~
+
+# Dashboard uploads (kept on the server volume, not in the repo)
+data/

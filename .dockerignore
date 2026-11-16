@@ -2,3 +2,6 @@
 .gitignore
 Dockerfile
 .dockerignore
+.claude
+data
+node_modules

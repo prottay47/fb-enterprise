@@ -1,12 +1,20 @@
-FROM nginx:alpine
+FROM node:22-alpine
 
-# Copy custom nginx configuration supporting both port 80 and 3000
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy static website files to nginx html root
-COPY . /usr/share/nginx/html
+# Website, dashboard and server (no npm packages needed)
+COPY . .
 
-# Expose both standard web port and Coolify default port
-EXPOSE 80 3000
+ENV NODE_ENV=production \
+    PORT=3000 \
+    DATA_DIR=/app/data
 
-CMD ["nginx", "-g", "daemon off;"]
+# Uploaded banners live here. Mount a persistent volume on /app/data
+# so they survive redeploys. Set ADMIN_PASSWORD in the hosting panel.
+RUN mkdir -p /app/data && chown -R node:node /app/data
+VOLUME ["/app/data"]
+
+USER node
+EXPOSE 3000
+
+CMD ["node", "server.js"]
