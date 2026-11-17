@@ -29,6 +29,7 @@ const BANNERS_FILE = path.join(DATA_DIR, 'banners.json');
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const PRODUCTS_SEED = path.join(ROOT, 'products.seed.json');
 const QUOTES_FILE = path.join(DATA_DIR, 'quotes.json');
+const STATS_FILE = path.join(DATA_DIR, 'stats.json');
 const MAX_QUOTES_KEPT = 2000;                // oldest are dropped beyond this
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -198,6 +199,7 @@ async function serveStatic(req, res, pathname) {
 
 /** The homepage, with product cards, form options and footer links built from saved products. */
 async function serveHome(req, res) {
+  trackVisit(req);
   const [html, products] = await Promise.all([
     fsp.readFile(path.join(ROOT, 'index.html'), 'utf8'),
     readProducts(),
@@ -380,6 +382,160 @@ function readQuoteFields(body) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q.email)) return { error: 'Please enter a valid email address.', field: 'email' };
   if (!q.product) return { error: 'Please choose a product.', field: 'product' };
   return { quote: q };
+}
+
+/* ---------- Visitor statistics ----------
+ * Privacy-friendly counting, kept on this server only: no cookies, no IP addresses stored.
+ * A visitor is counted once per day using a hash of (daily random salt + IP + browser);
+ * the salt changes every day and is never shown, so visitors cannot be traced.
+ * Bots, prefetches and signed-in admins are not counted. Days follow Bangladesh time (UTC+6).
+ */
+const BOT_UA = /bot|crawl|spider|slurp|preview|monitor|uptime|curl|wget|python|axios|node-fetch|go-http|java\/|headless|lighthouse|pagespeed|facebookexternalhit|whatsapp|telegram|discord|scanner|httpclient|okhttp/i;
+const STATS_KEEP_DAYS = 400;
+let stats = null;
+let statsDirty = false;
+
+function dhakaDay(ts = Date.now()) {
+  return new Date(ts + 6 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+async function loadStats() {
+  try {
+    const raw = JSON.parse(await fsp.readFile(STATS_FILE, 'utf8'));
+    stats = {
+      startedAt: raw.startedAt || new Date().toISOString(),
+      days: raw.days || {},
+      today: { date: raw.today?.date || '', salt: raw.today?.salt || '', seen: new Set(raw.today?.seen || []) },
+    };
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.error('Could not read stats:', err.message);
+    stats = { startedAt: new Date().toISOString(), days: {}, today: { date: '', salt: '', seen: new Set() } };
+    statsDirty = true;
+  }
+}
+
+async function flushStats() {
+  if (!stats || !statsDirty) return;
+  statsDirty = false;
+  const keepFrom = dhakaDay(Date.now() - STATS_KEEP_DAYS * 86400000);
+  for (const day of Object.keys(stats.days)) if (day < keepFrom) delete stats.days[day];
+  const out = { startedAt: stats.startedAt, days: stats.days, today: { ...stats.today, seen: [...stats.today.seen] } };
+  try {
+    await fsp.mkdir(DATA_DIR, { recursive: true });
+    await fsp.writeFile(STATS_FILE + '.tmp', JSON.stringify(out));
+    await fsp.rename(STATS_FILE + '.tmp', STATS_FILE);
+  } catch (err) {
+    statsDirty = true;
+    console.error('Could not save stats:', err.message);
+  }
+}
+
+function trackVisit(req) {
+  if (!stats || req.method !== 'GET') return;
+  const ua = String(req.headers['user-agent'] || '');
+  if (!ua || BOT_UA.test(ua)) return;
+  const purpose = String(req.headers['sec-purpose'] || req.headers.purpose || '');
+  if (/prefetch|prerender/i.test(purpose)) return;
+  if (isLoggedIn(req)) return; // your own visits while signed in to the dashboard
+
+  const day = dhakaDay();
+  if (stats.today.date !== day) {
+    stats.today = { date: day, salt: crypto.randomBytes(16).toString('hex'), seen: new Set() };
+  }
+  const d = stats.days[day] || (stats.days[day] = { visitors: 0, views: 0, mobile: 0, desktop: 0, sources: {} });
+  d.views += 1;
+
+  const id = crypto.createHash('sha256').update(`${stats.today.salt}|${clientIp(req)}|${ua}`).digest('hex').slice(0, 16);
+  if (!stats.today.seen.has(id)) {
+    stats.today.seen.add(id);
+    d.visitors += 1;
+    if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) d.mobile += 1; else d.desktop += 1;
+    let source = 'Direct';
+    try {
+      const ref = new URL(req.headers.referer || req.headers.referrer || '');
+      const host = ref.hostname.replace(/^www\./, '');
+      const own = (req.headers['x-forwarded-host'] || req.headers.host || '').split(':')[0].replace(/^www\./, '');
+      if (host && host !== own) source = host;
+    } catch { /* no or bad referrer: direct */ }
+    d.sources[source] = (d.sources[source] || 0) + 1;
+    const keys = Object.keys(d.sources);
+    if (keys.length > 60) { // keep the per-day list small
+      keys.sort((a, b) => d.sources[a] - d.sources[b]).slice(0, keys.length - 60).forEach((k) => delete d.sources[k]);
+    }
+  }
+  statsDirty = true;
+}
+
+setInterval(() => { flushStats(); }, 30 * 1000).unref();
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, async () => {
+    await flushStats();
+    process.exit(0);
+  });
+}
+
+async function statsSummary() {
+  const today = dhakaDay();
+  const dayAt = (n) => dhakaDay(Date.now() - n * 86400000);
+  const get = (day) => stats.days[day] || { visitors: 0, views: 0, mobile: 0, desktop: 0, sources: {} };
+  const sum = (from, to, key) => {
+    let t = 0;
+    for (let i = from; i <= to; i += 1) t += get(dayAt(i))[key] || 0;
+    return t;
+  };
+
+  const series = [];
+  for (let i = 29; i >= 0; i -= 1) {
+    const day = dayAt(i);
+    series.push({ date: day, visitors: get(day).visitors, views: get(day).views });
+  }
+  let allVisits = 0;
+  for (const d of Object.values(stats.days)) allVisits += d.visitors;
+
+  const sources = {};
+  let mobile = 0;
+  let desktop = 0;
+  for (let i = 0; i < 30; i += 1) {
+    const d = get(dayAt(i));
+    mobile += d.mobile;
+    desktop += d.desktop;
+    for (const [k, v] of Object.entries(d.sources || {})) sources[k] = (sources[k] || 0) + v;
+  }
+  const topSources = Object.entries(sources).sort((a, b) => b[1] - a[1]).slice(0, 8)
+    .map(([name, visitors]) => ({ name, visitors }));
+
+  const [quotes, products, banners] = await Promise.all([readQuotes(), readProducts(), readBanners()]);
+  const since30 = Date.now() - 30 * 86400000;
+
+  return {
+    today,
+    startedAt: stats.startedAt,
+    visitors: {
+      today: get(today).visitors,
+      yesterday: get(dayAt(1)).visitors,
+      last7: sum(0, 6, 'visitors'),
+      prev7: sum(7, 13, 'visitors'),
+      last30: sum(0, 29, 'visitors'),
+      allTime: allVisits,
+    },
+    views: { today: get(today).views, last30: sum(0, 29, 'views') },
+    series,
+    devices: { mobile, desktop },
+    topSources,
+    quotes: {
+      total: quotes.length,
+      new: quotes.filter((q) => q.status === 'new').length,
+      last30: quotes.filter((q) => Date.parse(q.createdAt) >= since30).length,
+      recent: quotes.slice(0, 5).map((q) => ({
+        id: q.id, name: q.name, company: q.company, product: q.product, status: q.status, createdAt: q.createdAt,
+      })),
+    },
+    content: {
+      stone: products.stone.length,
+      sand: products.sand.length,
+      banners: banners.length,
+    },
+  };
 }
 
 function publicBanner(b) {
@@ -639,6 +795,10 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, 200, { banners: sorted.map(publicBanner) });
   }
 
+  if (pathname === '/api/admin/stats' && method === 'GET') {
+    return sendJson(res, 200, await statsSummary());
+  }
+
   /* ---------- Quotation requests ---------- */
   if (pathname === '/api/admin/quotes' && method === 'GET') {
     const quotes = await readQuotes();
@@ -809,9 +969,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+loadStats().finally(() => server.listen(PORT, () => {
   console.log(`F B Group site running on http://localhost:${PORT}`);
   console.log(`Dashboard: http://localhost:${PORT}/admin/`);
   if (!ADMIN_PASSWORD) console.warn('ADMIN_PASSWORD is not set: the dashboard is locked.');
   console.log(`Banner data: ${DATA_DIR}`);
-});
+}));

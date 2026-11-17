@@ -428,22 +428,25 @@
 
   /* ================= Pages ================= */
 
-  const VIEWS = ['banners', 'stone', 'sand', 'quotes'];
+  const VIEWS = ['overview', 'stone', 'sand', 'quotes', 'settings'];
 
   function route() {
-    let view = (location.hash || '#banners').slice(1);
-    if (!VIEWS.includes(view)) view = 'banners';
+    let view = (location.hash || '#overview').slice(1);
+    if (view === 'banners') view = 'settings'; // old address
+    if (!VIEWS.includes(view)) view = 'overview';
     document.querySelectorAll('[data-view]').forEach((a) => {
       const on = a.dataset.view === view;
       a.classList.toggle('is-active', on);
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
-    $('view-banners').hidden = view !== 'banners';
+    $('view-overview').hidden = view !== 'overview';
+    $('view-settings').hidden = view !== 'settings';
     $('view-products').hidden = view !== 'stone' && view !== 'sand';
     $('view-quotes').hidden = view !== 'quotes';
     if (view === 'stone' || view === 'sand') openProducts(view);
     if (view === 'quotes') loadQuotes();
     else refreshQuoteBadge();
+    if (view === 'overview') loadOverview();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', () => { if (!screens.app.hidden) route(); });
@@ -454,7 +457,7 @@
     stone: {
       title: 'Stone products',
       singular: 'stone product',
-      intro: 'The cards in the Products section of the homepage. They also fill the enquiry form’s product list and the footer.',
+      intro: 'The cards in the Products section of the homepage. They also fill the enquiry form’s product list.',
       list: { key: 'sizes', legend: 'Sizes', label: 'Size', hint: 'Up to 5 sizes, e.g. 10–20 mm. Shown together on the card.', placeholder: 'e.g. 10–20 mm', add: '+ Add size' },
       fields: [
         { key: 'use', label: 'Use', placeholder: 'e.g. Concrete / RCC' },
@@ -915,6 +918,208 @@
     quotes.filter = b.dataset.filter;
     renderQuotes();
   }));
+
+  /* ================= Dashboard overview ================= */
+
+  const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+  const dayLabel = (iso, opts = { day: 'numeric', month: 'short' }) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', opts);
+
+  function statTile(label, value, sub) {
+    const d = el('div', 'stat');
+    d.append(el('span', 'stat-label', label), el('strong', 'stat-value', fmt(value)));
+    if (sub) {
+      const s = el('p', 'stat-sub');
+      if (sub instanceof Node) s.append(sub); else s.textContent = sub;
+      d.append(s);
+    }
+    return d;
+  }
+
+  function change(now, before, period) {
+    const span = document.createElement('span');
+    if (!before && !now) { span.textContent = `No visits ${period} either`; return span; }
+    if (!before) { span.textContent = `Up from 0 ${period}`; return span; }
+    const pct = Math.round(((now - before) / before) * 100);
+    const b = el('span', pct >= 0 ? 'up' : 'down', `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}%`);
+    span.append(b, document.createTextNode(` vs ${period}`));
+    return span;
+  }
+
+  let chartTip = null;
+  function showTip(target, html) {
+    if (!chartTip) { chartTip = el('div', 'chart-tip'); chartTip.setAttribute('role', 'presentation'); document.body.append(chartTip); }
+    chartTip.innerHTML = html;
+    const r = target.getBoundingClientRect();
+    chartTip.style.left = `${Math.min(window.innerWidth - 80, Math.max(80, r.left + r.width / 2))}px`;
+    chartTip.style.top = `${r.top + r.height - (target.firstChild ? target.firstChild.getBoundingClientRect().height : 0)}px`;
+    chartTip.hidden = false;
+  }
+  function hideTip() { if (chartTip) chartTip.hidden = true; }
+
+  /** A round top for the y-axis whose half is also a whole number (people can't be fractional). */
+  function niceMax(v) {
+    if (v <= 4) return 4;
+    const p = 10 ** Math.floor(Math.log10(v));
+    for (const m of [1, 2, 4, 6, 8, 10]) {
+      const top = m * p;
+      if (top >= v && Number.isInteger(top / 2)) return top;
+    }
+    return 10 * p;
+  }
+
+  function renderChart(series) {
+    const box = $('ovChart');
+    box.innerHTML = '';
+    const max = niceMax(Math.max(...series.map((d) => d.visitors), 0));
+    const total = series.reduce((t, d) => t + d.visitors, 0);
+
+    const y = el('div', 'vchart-y');
+    [max, max / 2, 0].forEach((v) => y.append(el('span', '', fmt(v))));
+    const plot = el('div', 'vchart-plot');
+    [0, 50].forEach((pct) => { const g = el('div', 'vchart-grid'); g.style.top = `${pct}%`; plot.append(g); });
+    const bars = el('div', 'vchart-bars');
+    bars.setAttribute('role', 'list');
+    bars.setAttribute('aria-label', `Visitors per day, last 30 days. ${fmt(total)} in total.`);
+    series.forEach((d) => {
+      const hit = el('div', 'vbar-hit');
+      hit.tabIndex = 0;
+      hit.setAttribute('role', 'listitem');
+      const label = `${dayLabel(d.date, { weekday: 'short', day: 'numeric', month: 'short' })}: ${fmt(d.visitors)} visitors, ${fmt(d.views)} page views`;
+      hit.setAttribute('aria-label', label);
+      const bar = el('div', 'vbar' + (d.visitors ? '' : ' is-zero'));
+      bar.style.height = `${(d.visitors / max) * 100}%`;
+      hit.append(bar);
+      const tip = `<strong>${fmt(d.visitors)} visitors</strong>${dayLabel(d.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmt(d.views)} views`;
+      hit.addEventListener('mouseenter', () => showTip(hit, tip));
+      hit.addEventListener('focus', () => showTip(hit, tip));
+      hit.addEventListener('mouseleave', hideTip);
+      hit.addEventListener('blur', hideTip);
+      bars.append(hit);
+    });
+    plot.append(bars);
+    if (!total) plot.append(el('div', 'vchart-empty', 'No visits recorded yet. Visitors appear here as soon as people open the website.'));
+
+    const x = el('div', 'vchart-x');
+    [series[0], series[14], series[29]].forEach((d) => x.append(el('span', '', dayLabel(d.date))));
+    box.append(y, plot, x);
+    $('ovChartNote').textContent = `${fmt(total)} visitors`;
+
+    const tbody = $('ovTable').querySelector('tbody');
+    tbody.innerHTML = '';
+    [...series].reverse().forEach((d) => {
+      const tr = document.createElement('tr');
+      tr.append(el('td', '', dayLabel(d.date, { weekday: 'short', day: 'numeric', month: 'short' })), el('td', '', fmt(d.visitors)), el('td', '', fmt(d.views)));
+      tbody.append(tr);
+    });
+  }
+
+  function renderSources(list) {
+    const ul = $('ovSources');
+    ul.innerHTML = '';
+    if (!list.length) { ul.append(el('li', 'muted-note', 'No visits in the last 30 days yet.')); return; }
+    const max = list[0].visitors;
+    list.forEach((s) => {
+      const li = el('li', 'hbar-row');
+      const name = s.name === 'Direct' ? 'Direct / typed address' : s.name;
+      li.append(el('span', 'name', name), el('span', 'num', fmt(s.visitors)));
+      const track = el('div', 'hbar-track');
+      const fill = el('div', 'hbar-fill');
+      fill.style.width = `${Math.max(2, (s.visitors / max) * 100)}%`;
+      track.append(fill);
+      li.append(track);
+      ul.append(li);
+    });
+  }
+
+  function renderDevices({ mobile, desktop }) {
+    const box = $('ovDevices');
+    box.innerHTML = '';
+    const total = mobile + desktop;
+    if (!total) { box.append(el('p', 'muted-note', 'No visits in the last 30 days yet.')); return; }
+    const pm = Math.round((mobile / total) * 100);
+    const wrap = el('div', 'devices');
+    const bar = el('div', 'split-bar');
+    bar.setAttribute('role', 'img');
+    bar.setAttribute('aria-label', `Phones and tablets ${pm}%, computers ${100 - pm}%`);
+    const a = el('span'); a.style.width = `${pm}%`;
+    const b = el('span'); b.style.width = `${100 - pm}%`;
+    bar.append(a, b);
+    const legend = el('div', 'split-legend');
+    const item = (color, label, pct, n) => {
+      const s = el('span');
+      const i = el('i'); i.style.background = color;
+      s.append(i, document.createTextNode(`${label} `), el('b', '', `${pct}%`), document.createTextNode(` (${fmt(n)})`));
+      return s;
+    };
+    legend.append(item('var(--blue)', 'Phones & tablets', pm, mobile), item('var(--green)', 'Computers', 100 - pm, desktop));
+    wrap.append(bar, legend);
+    box.append(wrap);
+  }
+
+  function renderQuotesPanel(q) {
+    const box = $('ovQuoteStats');
+    box.innerHTML = '';
+    [['New', q.new], ['Last 30 days', q.last30], ['Total', q.total]].forEach(([label, n]) => {
+      const d = el('div');
+      d.append(el('b', '', fmt(n)), el('span', '', label));
+      box.append(d);
+    });
+    const ul = $('ovRecent');
+    ul.innerHTML = '';
+    if (!q.recent.length) { ul.append(el('li', 'muted-note', 'No requests yet.')); return; }
+    q.recent.forEach((r) => {
+      const li = el('li');
+      const who = el('div', 'who');
+      who.append(el('strong', '', r.name), el('span', '', [r.product, r.company].filter(Boolean).join(' · ')));
+      const t = el('time', '', formatWhen(r.createdAt));
+      t.dateTime = r.createdAt;
+      li.append(who, t);
+      ul.append(li);
+    });
+  }
+
+  function renderContent(c) {
+    const ul = $('ovContent');
+    ul.innerHTML = '';
+    [
+      ['#stone', 'Stone products', c.stone],
+      ['#sand', 'Sand products', c.sand],
+      ['#settings', 'Hero banners', c.banners ? c.banners : 'Default (3)'],
+    ].forEach(([href, label, n]) => {
+      const li = el('li');
+      const a = el('a');
+      a.href = href;
+      a.append(el('span', '', label), el('b', '', typeof n === 'number' ? fmt(n) : n));
+      li.append(a);
+      ul.append(li);
+    });
+  }
+
+  async function loadOverview() {
+    try {
+      const s = await api('/api/admin/stats');
+      const started = new Date(s.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      $('ovIntro').textContent = `Website activity at a glance. Visitor counting started on ${started}; each person is counted once per day.`;
+      const stats = $('ovStats');
+      stats.innerHTML = '';
+      stats.append(
+        statTile('Visitors today', s.visitors.today, change(s.visitors.today, s.visitors.yesterday, 'yesterday')),
+        statTile('Last 7 days', s.visitors.last7, change(s.visitors.last7, s.visitors.prev7, 'the 7 days before')),
+        statTile('Last 30 days', s.visitors.last30, `${fmt(s.views.last30)} page views`),
+        statTile('All-time visits', s.visitors.allTime, `Since ${started}`),
+      );
+      renderChart(s.series);
+      renderSources(s.topSources);
+      renderDevices(s.devices);
+      renderQuotesPanel(s.quotes);
+      renderContent(s.content);
+      setNewCount(s.quotes.new);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+  $('ovRefresh').addEventListener('click', loadOverview);
 
   boot();
 })();

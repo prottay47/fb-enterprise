@@ -1,6 +1,5 @@
 /**
- * Builds the product cards, the enquiry-form product list and the footer
- * product links from product data. Used by server.js on every page request,
+ * Builds the product cards and the enquiry-form product list from product data. Used by server.js on every page request,
  * so the homepage always shows what was saved in the dashboard.
  */
 'use strict';
@@ -79,12 +78,6 @@ function renderOptions(data, indent = '                ') {
   return out.join('\n');
 }
 
-function renderFooter(data, indent = '            ') {
-  const items = (data.stone || []).slice(0, 5)
-    .map((p) => `${indent}<li><a href="#products">${esc(p.name)}</a></li>`);
-  if ((data.sand || []).length) items.push(`${indent}<li><a href="#sand">Sand Products</a></li>`);
-  return items.join('\n');
-}
 
 /** Replaces each marked region of the page with freshly built HTML. */
 function renderPage(html, data) {
@@ -92,7 +85,6 @@ function renderPage(html, data) {
     'PRODUCTS:stone': renderCards('stone', data.stone || []),
     'PRODUCTS:sand': renderCards('sand', data.sand || []),
     'PRODUCT-OPTIONS': renderOptions(data),
-    'FOOTER-PRODUCTS': renderFooter(data),
   };
   let out = html;
   for (const [name, content] of Object.entries(regions)) {
