@@ -60,6 +60,11 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19c3-6 6-9 9-9s6 3 9 9Z"/><path d="M8 14h.01M12 13h.01M15 15h.01"/></svg>
           Sand products
         </a>
+        <a href="#quotes" data-view="quotes">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 4Z"/><path d="M8 9h8M8 12h5"/></svg>
+          Quotations
+          <span class="nav-badge" data-new-count hidden></span>
+        </a>
       </nav>
       <div class="sidebar-foot">
         <a href="/" target="_blank" rel="noopener">
@@ -87,6 +92,7 @@
       <a href="#banners" data-view="banners">Banners</a>
       <a href="#stone" data-view="stone">Stone</a>
       <a href="#sand" data-view="sand">Sand</a>
+      <a href="#quotes" data-view="quotes">Quotes <span class="nav-badge" data-new-count hidden></span></a>
     </nav>
 
     <main class="main" id="main">
@@ -114,15 +120,6 @@
         </div>
       </section>
 
-      <!-- Default notice -->
-      <section class="panel" id="defaultsPanel" hidden aria-labelledby="defaultsTitle">
-        <div class="panel-head">
-          <h2 id="defaultsTitle" class="panel-title">Showing the default banners</h2>
-          <span class="tag">Default</span>
-        </div>
-        <p class="panel-text">No banners are uploaded, so the homepage is using these three, each with its own portrait version for phones. As soon as you upload one, only your uploaded banners are shown.</p>
-        <div class="default-grid" id="defaultGrid"></div>
-      </section>
 
       <!-- Custom banners -->
       <section class="panel" id="listPanel" hidden aria-labelledby="listTitle">
@@ -209,6 +206,25 @@
         </div>
         <ol class="prod-list" id="prodList"></ol>
         <p class="panel-text" id="prodEmpty" hidden>No products yet. The website shows "Products will be listed here soon" in this section.</p>
+      </section>
+     </div>
+
+     <!-- Quotation requests from the homepage form -->
+     <div class="view" id="view-quotes" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Quotation requests</h1>
+          <p>Sent from the Request a Quote form on the homepage. Newest first.</p>
+        </div>
+        <div class="seg" role="group" aria-label="Show requests">
+          <button type="button" class="seg-btn" data-filter="all" aria-pressed="true">All <span data-count="all"></span></button>
+          <button type="button" class="seg-btn" data-filter="new" aria-pressed="false">New <span data-count="new"></span></button>
+          <button type="button" class="seg-btn" data-filter="contacted" aria-pressed="false">Contacted <span data-count="contacted"></span></button>
+        </div>
+      </div>
+      <section class="panel" aria-label="Requests">
+        <ol class="quote-list" id="quoteList"></ol>
+        <p class="panel-text quote-empty" id="quoteEmpty" hidden></p>
       </section>
      </div>
     </main>

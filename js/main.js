@@ -6,6 +6,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   // Hero banner slider (banners come from the dashboard at /admin)
   initHeroSlider();
+  initLazyMedia();
 
   // 1. Dynamic Copyright Year
   const yearElement = document.getElementById('year');
@@ -55,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mediaList = galleryItems.map((item) => {
       const media = item.querySelector('img, video');
       return {
-        src: media ? media.getAttribute('src') : '',
+        src: media ? (media.getAttribute('data-full') || media.getAttribute('src')) : '',
         alt: item.getAttribute('data-alt') || (media ? media.getAttribute('alt') : '') || 'Gallery Media',
         type: item.getAttribute('data-type') || (media && media.tagName.toLowerCase() === 'video' ? 'video' : 'image')
       };
@@ -133,60 +134,85 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 4. Quotation & Contact Form Handling
+  // 4. Quotation form: sent to the server, read in the dashboard (/admin → Quotations)
   const quotationForm = document.getElementById('quotationForm');
   const formToast = document.getElementById('formToast');
 
   if (quotationForm) {
-    quotationForm.addEventListener('submit', (e) => {
+    // Fetch SweetAlert in the background once the visitor starts filling in the form
+    quotationForm.addEventListener('focusin', () => { loadSwal(); }, { once: true });
+
+    const showMessage = async (text, ok) => {
+      const Swal = await Promise.race([loadSwal(), new Promise((r) => setTimeout(() => r(null), 2500))]);
+      if (Swal) {
+        Swal.fire({
+          title: ok ? 'Thank you!' : 'Not sent',
+          text,
+          icon: ok ? 'success' : 'error',
+          confirmButtonColor: '#0a1a3f'
+        });
+      } else if (formToast) {
+        formToast.textContent = text;
+        formToast.className = 'form-toast ' + (ok ? 'success' : 'error');
+        if (ok) setTimeout(() => { formToast.className = 'form-toast'; }, 8000);
+      } else {
+        alert(text);
+      }
+    };
+
+    quotationForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (formToast) formToast.className = 'form-toast';
+
+      const fd = new FormData(quotationForm);
+      const payload = {
+        name: fd.get('Full_Name') || '',
+        company: fd.get('Company') || '',
+        email: fd.get('Email') || '',
+        phone: fd.get('Phone') || '',
+        product: fd.get('Product') || '',
+        quantity: fd.get('Quantity') || '',
+        port: fd.get('Port') || '',
+        message: fd.get('Message') || '',
+        website: fd.get('website') || ''
+      };
+
+      const fieldIds = { name: 'fname', email: 'email', product: 'product' };
+      if (!payload.name.trim()) { showMessage('Please enter your name.', false); document.getElementById('fname').focus(); return; }
+      if (!payload.email.trim()) { showMessage('Please enter your email address.', false); document.getElementById('email').focus(); return; }
+      if (!payload.product) { showMessage('Please choose a product.', false); document.getElementById('product').focus(); return; }
 
       const submitBtn = quotationForm.querySelector('.form-submit');
       const originalText = submitBtn ? submitBtn.innerText : 'Send Enquiry';
-
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.innerText = 'Sending...';
       }
 
-      // Save inquiry to localStorage for record keeping and offline testing
       try {
-        const formData = Object.fromEntries(new FormData(quotationForm).entries());
-        const records = JSON.parse(localStorage.getItem('fb_quotation_enquiries') || '[]');
-        records.push({
-          ...formData,
-          submittedAt: new Date().toISOString()
+        const res = await fetch('/api/quotes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload)
         });
-        localStorage.setItem('fb_quotation_enquiries', JSON.stringify(records));
-      } catch (err) {
-        console.warn('localStorage write failed:', err);
-      }
-
-      setTimeout(() => {
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            title: 'Success!',
-            text: 'Thank you! Your quotation enquiry has been submitted successfully. Our trade desk will contact you soon.',
-            icon: 'success',
-            confirmButtonColor: '#0a1a3f'
-          });
-        } else if (formToast) {
-          formToast.textContent = 'Thank you! Your quotation enquiry has been submitted successfully.';
-          formToast.className = 'form-toast success';
-          setTimeout(() => {
-            formToast.className = 'form-toast';
-          }, 6000);
-        } else {
-          alert('Thank you! Your quotation enquiry has been submitted successfully.');
+        let data = {};
+        try { data = await res.json(); } catch (_) { /* empty reply */ }
+        if (!res.ok) {
+          showMessage(data.error || 'Something went wrong. Please try again, or email us directly.', false);
+          const id = fieldIds[data.field];
+          if (id) document.getElementById(id).focus();
+          return;
         }
-
+        showMessage('Your quotation request has been sent. Our trade desk will contact you soon.', true);
         quotationForm.reset();
-
+      } catch (err) {
+        showMessage('We could not send your request. Please check your internet connection and try again.', false);
+      } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.innerText = originalText;
         }
-      }, 500);
+      }
     });
   }
 
@@ -338,4 +364,49 @@ function initHeroSlider() {
       pre.onerror = swap;
     })
     .catch(() => { /* static hosting or offline: keep the default banners */ });
+}
+
+/**
+ * Speed: gallery video preview pictures load only when they are about to scroll
+ * into view. Videos themselves download only when opened in the lightbox.
+ */
+function showLazy(el) {
+  if (el.dataset.bg) el.style.backgroundImage = `url("${el.dataset.bg}")`;
+  if (el.dataset.poster) el.poster = el.dataset.poster;
+}
+
+function initLazyMedia() {
+  const bgEls = document.querySelectorAll('[data-bg], video[data-poster]');
+
+  if (!('IntersectionObserver' in window)) {
+    bgEls.forEach(showLazy);
+    return;
+  }
+
+  const bgObserver = new IntersectionObserver((entries, obs) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      showLazy(entry.target);
+      obs.unobserve(entry.target);
+    });
+  }, { rootMargin: '400px 0px' });
+  bgEls.forEach((el) => bgObserver.observe(el));
+
+}
+
+/** SweetAlert is only needed after someone sends the quote form, so it loads then. */
+let swalPromise = null;
+function loadSwal() {
+  if (window.Swal) return Promise.resolve(window.Swal);
+  if (!swalPromise) {
+    swalPromise = new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.all.min.js';
+      s.async = true;
+      s.onload = () => resolve(window.Swal || null);
+      s.onerror = () => resolve(null);
+      document.head.appendChild(s);
+    });
+  }
+  return swalPromise;
 }

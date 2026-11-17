@@ -38,14 +38,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
     rel="stylesheet" />
+
+  <!-- Start loading the first hero banner right away -->
+  <link rel="preload" as="image" href="images/banners/default-1-phone.webp" media="(max-width: 767px)" fetchpriority="high" />
+  <link rel="preload" as="image" href="images/opt/default-1.webp" imagesrcset="images/opt/default-1-1000.webp 1000w, images/opt/default-1.webp 1920w" imagesizes="100vw" media="(min-width: 768px)" fetchpriority="high" />
 
   <!-- Stylesheet -->
   <link rel="stylesheet" href="css/style.css" />
 
-  <!-- Optional SweetAlert2 for notifications -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" defer></script>
 
   <!-- Schema.org Structured Data -->
   <script type="application/ld+json">
@@ -105,20 +107,20 @@
     <div class="hero-slides" id="heroSlides">
       <picture class="hero-slide is-active">
         <source media="(max-width: 767px)" srcset="images/banners/default-1-phone.webp" />
-        <img src="images/banners/default-1.jpg"
-          srcset="images/banners/default-1-1000.jpg 1000w, images/banners/default-1.jpg 2000w" sizes="100vw"
+        <img src="images/opt/default-1.webp"
+          srcset="images/opt/default-1-1000.webp 1000w, images/opt/default-1.webp 1920w" sizes="100vw"
           width="2000" height="1116" alt="Bulk carrier discharging stone aggregate into a lighter vessel" style="object-position:55% 50%" decoding="async" fetchpriority="high" />
       </picture>
       <picture class="hero-slide">
         <source media="(max-width: 767px)" srcset="images/banners/default-2-phone.webp" />
-        <img src="images/banners/default-2.jpg"
-          srcset="images/banners/default-2-1000.jpg 1000w, images/banners/default-2.jpg 2000w" sizes="100vw"
+        <img src="images/opt/default-2.webp"
+          srcset="images/opt/default-2-1000.webp 1000w, images/opt/default-2.webp 1920w" sizes="100vw"
           width="2000" height="1116" alt="Excavator unloading stone aggregate from a barge into a dump truck at a river ghat" style="object-position:62% 50%" decoding="async" loading="lazy" />
       </picture>
       <picture class="hero-slide">
         <source media="(max-width: 767px)" srcset="images/banners/default-3-phone.webp" />
-        <img src="images/banners/default-3.jpg"
-          srcset="images/banners/default-3-1000.jpg 1000w, images/banners/default-3.jpg 2000w" sizes="100vw"
+        <img src="images/opt/default-3.webp"
+          srcset="images/opt/default-3-1000.webp 1000w, images/opt/default-3.webp 1920w" sizes="100vw"
           width="2000" height="1116" alt="Floating crane transferring aggregate from a mother vessel to a lighter vessel" style="object-position:58% 50%" decoding="async" loading="lazy" />
       </picture>
     </div>
@@ -170,7 +172,7 @@
 
       <div class="group-tree" aria-hidden="true">
         <div class="group-parent">
-          <img src="images/fb-group-logo.webp" width="168" height="240" alt="" />
+          <img src="images/fb-group-logo.webp" width="168" height="240" alt="" loading="lazy" />
           <span>F&nbsp;B&nbsp;Group</span>
         </div>
         <svg class="group-lines" viewBox="0 0 1000 60" preserveAspectRatio="none">
@@ -182,12 +184,12 @@
         <!-- CARD 01: F B ENTERPRISE -->
         <article class="group-card group-card--enterprise">
           <div class="group-photo">
-            <img src="images/Main-images.jpg" width="848" height="416" loading="lazy" decoding="async"
+            <img src="images/opt/main-images-card.webp" width="760" height="373" loading="lazy" decoding="async"
               alt="Excavator unloading cargo from a vessel onto a dump truck at a Bangladesh port" />
           </div>
           <div class="group-body">
             <div class="group-id">
-              <img class="group-logo" src="images/fb-enterprise-logo.webp" srcset="images/fb-enterprise-logo.webp 1x, images/fb-enterprise-logo@2x.webp 2x" width="168" height="240" alt="F B Enterprise logo" />
+              <img class="group-logo" src="images/fb-enterprise-logo.webp" srcset="images/fb-enterprise-logo.webp 1x, images/fb-enterprise-logo@2x.webp 2x" width="168" height="240" alt="F B Enterprise logo" loading="lazy" />
               <div>
                 <span class="group-index">01</span>
                 <h3>F&nbsp;B&nbsp;Enterprise</h3>
@@ -205,13 +207,12 @@
         <!-- CARD 02: F B HOLDINGS LTD -->
         <article class="group-card group-card--holdings">
           <div class="group-photo">
-            <img src="images/holdings-office.jpg" srcset="images/holdings-office-500.jpg 500w, images/holdings-office.jpg 960w"
-              sizes="(max-width: 900px) 100vw, 50vw" width="960" height="722" loading="lazy" decoding="async"
+            <img src="images/opt/holdings-office-card.webp" width="760" height="570" loading="lazy" decoding="async"
               alt="Glass curtain walls of modern office buildings against a blue sky" />
           </div>
           <div class="group-body">
             <div class="group-id">
-              <img class="group-logo" src="images/fb-holdings-logo.webp" srcset="images/fb-holdings-logo.webp 1x, images/fb-holdings-logo@2x.webp 2x" width="168" height="240" alt="F B Holdings LTD logo" />
+              <img class="group-logo" src="images/fb-holdings-logo.webp" srcset="images/fb-holdings-logo.webp 1x, images/fb-holdings-logo@2x.webp 2x" width="168" height="240" alt="F B Holdings LTD logo" loading="lazy" />
               <div>
                 <span class="group-index">02</span>
                 <h3>F&nbsp;B&nbsp;Holdings&nbsp;LTD</h3>
@@ -257,7 +258,7 @@
   <section id="about" class="about">
     <div class="container about-grid">
       <div class="about-img">
-        <img src="images/about-bulk-carrier-portrait.webp" width="1122" height="1402" alt="Bulk carrier at sea loaded with crushed stone, with its deck cranes raised" loading="lazy" decoding="async" />
+        <img src="images/opt/about-bulk-carrier-760.webp" width="760" height="950" alt="Bulk carrier at sea loaded with crushed stone, with its deck cranes raised" loading="lazy" decoding="async" />
       </div>
       <div class="about-content">
         <span class="eyebrow">About F B Group</span>
@@ -303,7 +304,9 @@
       <div class="product-grid">
         <!-- PRODUCTS:stone -->
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/0-5mm%20stone.jpeg');" role="img" aria-label="Stone Dust 0-5mm (Fine Powder)"><span class="product-tag">Fines</span></div>
+          <div class="product-img">
+            <img src="/images/opt/0-5mm-stone-card.webp" alt="Stone Dust 0-5mm (Fine Powder)" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Fines</span>
+          </div>
           <div class="product-body">
             <h3>Stone Dust 0-5mm (Fine Powder)</h3>
             <p>Fine crushed stone powder for asphalt mix, block-making, plaster sand replacement and base layer compaction.</p>
@@ -317,7 +320,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/Crushed-Aggregate-20mm.jpeg');" role="img" aria-label="Crushed Aggregate 10-20 mm"><span class="product-tag">Coarse</span></div>
+          <div class="product-img">
+            <img src="/images/opt/crushed-aggregate-20mm-card.webp" alt="Crushed Aggregate 10-20 mm" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Coarse</span>
+          </div>
           <div class="product-body">
             <h3>Crushed Aggregate 10-20 mm</h3>
             <p>Premium fine-coarse aggregate for high-strength concrete, precast and ready-mix applications.</p>
@@ -331,7 +336,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/10-25mm%20stones.jpeg');" role="img" aria-label="Crushed Aggregate 10–25mm"><span class="product-tag">Shape Blast</span></div>
+          <div class="product-img">
+            <img src="/images/opt/10-25mm-stones-card.webp" alt="Crushed Aggregate 10–25mm" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Shape Blast</span>
+          </div>
           <div class="product-body">
             <h3>Crushed Aggregate 10–25mm</h3>
             <p>Cubical shape-blasted aggregate engineered for high-grade concrete, precast and exposed structural elements.</p>
@@ -344,7 +351,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/Crushed-Aggregate-40mm.jpeg');" role="img" aria-label="Crushed Aggregate 20-40mm"><span class="product-tag">Coarse</span></div>
+          <div class="product-img">
+            <img src="/images/opt/crushed-aggregate-40mm-card.webp" alt="Crushed Aggregate 20-40mm" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Coarse</span>
+          </div>
           <div class="product-body">
             <h3>Crushed Aggregate 20-40mm</h3>
             <p>Heavy-duty aggregate for sub-base, road base, drainage and large-format concrete works.</p>
@@ -358,7 +367,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/Aggregate-20%E2%80%9360mm.jpeg');" role="img" aria-label="Aggregate 20–60mm"><span class="product-tag">Oversize</span></div>
+          <div class="product-img">
+            <img src="/images/opt/aggregate-20-60mm-card.webp" alt="Aggregate 20–60mm" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Oversize</span>
+          </div>
           <div class="product-body">
             <h3>Aggregate 20–60mm</h3>
             <p>Large-fraction aggregate for road sub-base, drainage, gabion fill and heavy civil works.</p>
@@ -372,7 +383,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/Boulder-100%E2%80%93500-KG.jpeg');" role="img" aria-label="Boulder 100–500 KG"><span class="product-tag">Armor</span></div>
+          <div class="product-img">
+            <img src="/images/opt/boulder-100-500-kg-card.webp" alt="Boulder 100–500 KG" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Armor</span>
+          </div>
           <div class="product-body">
             <h3>Boulder 100–500 KG</h3>
             <p>Heavy armor stone for marine breakwaters, river training, embankment protection and coastal defence works.</p>
@@ -386,7 +399,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/Stone1.jpeg');" role="img" aria-label="Gabbro Stone"><span class="product-tag">Premium</span></div>
+          <div class="product-img">
+            <img src="/images/opt/stone1-card.webp" alt="Gabbro Stone" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Premium</span>
+          </div>
           <div class="product-body">
             <h3>Gabbro Stone</h3>
             <p>Hard, dense igneous stone from the Hajar mountains — ideal for railway ballast, marine works and high-load applications.</p>
@@ -398,7 +413,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/Limestone.jpeg');" role="img" aria-label="Limestone Aggregate"><span class="product-tag">Sedimentary</span></div>
+          <div class="product-img">
+            <img src="/images/opt/limestone-card.webp" alt="Limestone Aggregate" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Sedimentary</span>
+          </div>
           <div class="product-body">
             <h3>Limestone Aggregate</h3>
             <p>Versatile sedimentary stone, well-suited to cement production, road base, asphalt mix and architectural use.</p>
@@ -411,7 +428,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/Stone1.jpeg');" role="img" aria-label="Custom Grading"><span class="product-tag">Custom</span></div>
+          <div class="product-img">
+            <img src="/images/opt/stone1-card.webp" alt="Custom Grading" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Custom</span>
+          </div>
           <div class="product-body">
             <h3>Custom Grading</h3>
             <p>Need a non-standard fraction or blend? We crush and screen to client specification — armor stone, rip-rap, fines and more.</p>
@@ -441,7 +460,9 @@
       <div class="product-grid">
         <!-- PRODUCTS:sand -->
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/sand/sylhet-sand.jpg');" role="img" aria-label="Sylhet Sand (Coarse)"><span class="product-tag">Coarse</span></div>
+          <div class="product-img">
+            <img src="/images/opt/sylhet-sand-card.webp" alt="Sylhet Sand (Coarse)" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Coarse</span>
+          </div>
           <div class="product-body">
             <h3>Sylhet Sand (Coarse)</h3>
             <p>Golden coarse sand for RCC, concrete casting and structural works.</p>
@@ -455,7 +476,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/sand/fine-sand.jpg');" role="img" aria-label="Local Fine Sand"><span class="product-tag">Fine</span></div>
+          <div class="product-img">
+            <img src="/images/opt/fine-sand-card.webp" alt="Local Fine Sand" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Fine</span>
+          </div>
           <div class="product-body">
             <h3>Local Fine Sand</h3>
             <p>Fine sand for brickwork mortar, plastering and general masonry.</p>
@@ -469,7 +492,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/sand/river-sand.jpg');" role="img" aria-label="River Sand"><span class="product-tag">Natural</span></div>
+          <div class="product-img">
+            <img src="/images/opt/river-sand-card.webp" alt="River Sand" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Natural</span>
+          </div>
           <div class="product-body">
             <h3>River Sand</h3>
             <p>Natural river sand for general construction, mortar and block-making.</p>
@@ -483,7 +508,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/sand/plaster-sand.jpg');" role="img" aria-label="Plaster Sand"><span class="product-tag">Screened</span></div>
+          <div class="product-img">
+            <img src="/images/opt/plaster-sand-card.webp" alt="Plaster Sand" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Screened</span>
+          </div>
           <div class="product-body">
             <h3>Plaster Sand</h3>
             <p>Screened sharp sand with an even grading for smooth plaster and render finishes.</p>
@@ -497,7 +524,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/sand/filling-sand.jpg');" role="img" aria-label="Filling Sand"><span class="product-tag">Bulk</span></div>
+          <div class="product-img">
+            <img src="/images/opt/filling-sand-card.webp" alt="Filling Sand" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Bulk</span>
+          </div>
           <div class="product-body">
             <h3>Filling Sand</h3>
             <p>Bulk sand for land development, site filling and foundation backfill.</p>
@@ -510,7 +539,9 @@
         </div>
 
         <div class="product-card">
-          <div class="product-img" style="background-image:url('/images/sand/white-sand.jpg');" role="img" aria-label="White Silica Sand"><span class="product-tag">Industrial</span></div>
+          <div class="product-img">
+            <img src="/images/opt/white-sand-card.webp" alt="White Silica Sand" width="800" height="500" loading="lazy" decoding="async" /><span class="product-tag">Industrial</span>
+          </div>
           <div class="product-body">
             <h3>White Silica Sand</h3>
             <p>High-silica white sand for glass, foundry, filtration and specialty uses.</p>
@@ -537,96 +568,92 @@
 
       <div class="gallery-grid">
         <div class="gallery-item" data-gallery-index="0" data-type="video" data-alt="Pagla Yard Operation">
-          <video src="images/ff9453bef78e405fa1da181514c48060.mp4" poster="images/ff9453bef78e405fa1da181514c48060.jpg"
-            autoplay loop muted playsinline preload="metadata"></video>
+          <video src="images/ff9453bef78e405fa1da181514c48060.mp4" data-poster="images/opt/ff9453bef78e405fa1da181514c48060-poster.webp" loop muted playsinline preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="1" data-type="video" data-alt="Stone Aggregates">
-          <video src="images/68e66a00cdd94bf6a4d1c467bb7f4902.mp4" poster="images/68e66a00cdd94bf6a4d1c467bb7f4902.jpg"
-            autoplay loop muted playsinline preload="metadata"></video>
+          <video src="images/68e66a00cdd94bf6a4d1c467bb7f4902.mp4" data-poster="images/opt/68e66a00cdd94bf6a4d1c467bb7f4902-poster.webp" loop muted playsinline preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="2" data-type="video" data-alt="Pagla Yard Stockpile">
-          <video src="images/2bedcc44750a41598f0464a9a6ccea2d.mp4" poster="images/2bedcc44750a41598f0464a9a6ccea2d.jpg"
-            autoplay loop muted playsinline preload="metadata"></video>
+          <video src="images/2bedcc44750a41598f0464a9a6ccea2d.mp4" data-poster="images/opt/2bedcc44750a41598f0464a9a6ccea2d-poster.webp" loop muted playsinline preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="3" data-type="video" data-alt="Graded Stone Sorting">
-          <video src="images/b47ef7c5e35e4f0cbe9994f960858768.mp4" poster="images/b47ef7c5e35e4f0cbe9994f960858768.jpg"
-            autoplay loop muted playsinline preload="metadata"></video>
+          <video src="images/b47ef7c5e35e4f0cbe9994f960858768.mp4" data-poster="images/opt/b47ef7c5e35e4f0cbe9994f960858768-poster.webp" loop muted playsinline preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="4" data-type="video" data-alt="Meghna Yard Aerial Drone View">
-          <video src="images/MeghnaDrone.mp4" poster="images/MeghnaDrone.jpg" autoplay loop muted playsinline
-            preload="metadata"></video>
+          <video src="images/MeghnaDrone.mp4" data-poster="images/opt/meghnadrone-poster.webp" loop muted playsinline
+            preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="5" data-type="video" data-alt="Main Operations Overview">
-          <video src="images/Main-images.mp4" poster="images/Main-images.jpg" autoplay loop muted playsinline
-            preload="metadata"></video>
+          <video src="images/Main-images.mp4" data-poster="images/opt/main-images-poster.webp" loop muted playsinline
+            preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="6" data-type="video" data-alt="Aggregate Stockpile Close-Up">
-          <video src="images/Stone2.mp4" poster="images/Stone2.jpg" autoplay loop muted playsinline
-            preload="metadata"></video>
+          <video src="images/Stone2.mp4" data-poster="images/opt/stone2-poster.webp" loop muted playsinline
+            preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="7" data-type="video" data-alt="Meghna River Operations">
-          <video src="images/Meghna1.mp4" poster="images/Meghna1.jpg" autoplay loop muted playsinline
-            preload="metadata"></video>
+          <video src="images/Meghna1.mp4" data-poster="images/opt/meghna1-poster.webp" loop muted playsinline
+            preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="8" data-type="video" data-alt="Meghna Yard Drone Survey">
-          <video src="images/Meghnadrone2.mp4" poster="images/Meghnadrone2.jpg" autoplay loop muted playsinline
-            preload="metadata"></video>
+          <video src="images/Meghnadrone2.mp4" data-poster="images/opt/meghnadrone2-poster.webp" loop muted playsinline
+            preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="9" data-type="video" data-alt="Rupshi Drone Overview">
-          <video src="images/Rupshidron1.mp4" poster="images/Rupshidron1.jpg" autoplay loop muted playsinline
-            preload="metadata"></video>
+          <video src="images/Rupshidron1.mp4" data-poster="images/opt/rupshidron1-poster.webp" loop muted playsinline
+            preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="10" data-type="video" data-alt="Pagla River Terminal">
-          <video src="images/PagladShortvideo.mp4" poster="images/PagladShortvideo.jpg" autoplay loop muted playsinline
-            preload="metadata"></video>
+          <video src="images/PagladShortvideo.mp4" data-poster="images/opt/pagladshortvideo-poster.webp" loop muted playsinline
+            preload="none"></video>
         </div>
         <div class="gallery-item" data-gallery-index="11" data-type="image" data-alt="Meghna Facility View 1">
-          <img src="images/Meghna13.JPG" loading="lazy" decoding="async" alt="Meghna Facility View 1" />
+          <img src="images/opt/meghna13-tile.webp" width="760" height="506" data-full="images/opt/meghna13.webp" loading="lazy" decoding="async" alt="Meghna Facility View 1" />
         </div>
         <div class="gallery-item" data-gallery-index="12" data-type="image" data-alt="Field Loading Operation">
-          <img src="images/Operation-1.jpeg" loading="lazy" decoding="async" alt="Field Loading Operation" />
+          <img src="images/opt/operation-1-tile.webp" width="760" height="849" data-full="images/opt/operation-1.webp" loading="lazy" decoding="async" alt="Field Loading Operation" />
         </div>
         <div class="gallery-item" data-gallery-index="13" data-type="image" data-alt="Meghna Facility View 2">
-          <img src="images/Meghna14.JPG" loading="lazy" decoding="async" alt="Meghna Facility View 2" />
+          <img src="images/opt/meghna14-tile.webp" width="760" height="506" data-full="images/opt/meghna14.webp" loading="lazy" decoding="async" alt="Meghna Facility View 2" />
         </div>
         <div class="gallery-item" data-gallery-index="14" data-type="image" data-alt="Pagla Ghat Riverside">
-          <img src="images/Paglaghat3.JPG" loading="lazy" decoding="async" alt="Pagla Ghat Riverside" />
+          <img src="images/opt/paglaghat3-tile.webp" width="760" height="570" data-full="images/opt/paglaghat3.webp" loading="lazy" decoding="async" alt="Pagla Ghat Riverside" />
         </div>
         <div class="gallery-item" data-gallery-index="15" data-type="image" data-alt="Meghna Yard Heavy Machinery">
-          <img src="images/Meghna8.JPG" loading="lazy" decoding="async" alt="Meghna Yard Heavy Machinery" />
+          <img src="images/opt/meghna8-tile.webp" width="760" height="506" data-full="images/opt/meghna8.webp" loading="lazy" decoding="async" alt="Meghna Yard Heavy Machinery" />
         </div>
         <div class="gallery-item" data-gallery-index="16" data-type="image" data-alt="Meghna Stockpile Management">
-          <img src="images/Meghna7.JPG" loading="lazy" decoding="async" alt="Meghna Stockpile Management" />
+          <img src="images/opt/meghna7-tile.webp" width="760" height="506" data-full="images/opt/meghna7.webp" loading="lazy" decoding="async" alt="Meghna Stockpile Management" />
         </div>
         <div class="gallery-item" data-gallery-index="17" data-type="image" data-alt="Meghna Unloading Dock">
-          <img src="images/Meghna3.JPG" loading="lazy" decoding="async" alt="Meghna Unloading Dock" />
+          <img src="images/opt/meghna3-tile.webp" width="760" height="570" data-full="images/opt/meghna3.webp" loading="lazy" decoding="async" alt="Meghna Unloading Dock" />
         </div>
         <div class="gallery-item" data-gallery-index="18" data-type="image" data-alt="Vessel Discharge Operation">
-          <img src="images/Operation.jpeg" loading="lazy" decoding="async" alt="Vessel Discharge Operation" />
+          <img src="images/opt/operation-tile.webp" width="760" height="506" data-full="images/opt/operation.webp" loading="lazy" decoding="async" alt="Vessel Discharge Operation" />
         </div>
         <div class="gallery-item" data-gallery-index="19" data-type="image" data-alt="Fleet Yard Staging">
-          <img src="images/Operation-9.jpeg" loading="lazy" decoding="async" alt="Fleet Yard Staging" />
+          <img src="images/opt/operation-9-tile.webp" width="760" height="570" data-full="images/opt/operation-9.webp" loading="lazy" decoding="async" alt="Fleet Yard Staging" />
         </div>
         <div class="gallery-item" data-gallery-index="20" data-type="image" data-alt="Heavy Earthmoving & Crushing">
-          <img src="images/Operaiton-8.jpeg" loading="lazy" decoding="async" alt="Heavy Earthmoving & Crushing" />
+          <img src="images/opt/operaiton-8-tile.webp" width="760" height="570" data-full="images/opt/operaiton-8.webp" loading="lazy" decoding="async" alt="Heavy Earthmoving & Crushing" />
         </div>
         <div class="gallery-item" data-gallery-index="21" data-type="image" data-alt="Meghna Terminal Berth">
-          <img src="images/Meghna12.JPG" loading="lazy" decoding="async" alt="Meghna Terminal Berth" />
+          <img src="images/opt/meghna12-tile.webp" width="760" height="570" data-full="images/opt/meghna12.webp" loading="lazy" decoding="async" alt="Meghna Terminal Berth" />
         </div>
         <div class="gallery-item" data-gallery-index="22" data-type="image" data-alt="Pagla Ghat Barge Operations">
-          <img src="images/Paglaghat4.JPG" loading="lazy" decoding="async" alt="Pagla Ghat Barge Operations" />
+          <img src="images/opt/paglaghat4-tile.webp" width="760" height="570" data-full="images/opt/paglaghat4.webp" loading="lazy" decoding="async" alt="Pagla Ghat Barge Operations" />
         </div>
         <div class="gallery-item" data-gallery-index="23" data-type="image" data-alt="Bulk Discharge Line">
-          <img src="images/Meghna9.JPG" loading="lazy" decoding="async" alt="Bulk Discharge Line" />
+          <img src="images/opt/meghna9-tile.webp" width="760" height="506" data-full="images/opt/meghna9.webp" loading="lazy" decoding="async" alt="Bulk Discharge Line" />
         </div>
         <div class="gallery-item" data-gallery-index="24" data-type="image" data-alt="Stockpile Logistics">
-          <img src="images/Meghna11.JPG" loading="lazy" decoding="async" alt="Stockpile Logistics" />
+          <img src="images/opt/meghna11-tile.webp" width="760" height="506" data-full="images/opt/meghna11.webp" loading="lazy" decoding="async" alt="Stockpile Logistics" />
         </div>
         <div class="gallery-item" data-gallery-index="25" data-type="image" data-alt="Meghna Stockpile Drone Shot">
-          <img src="images/Meghna6.JPG" loading="lazy" decoding="async" alt="Meghna Stockpile Drone Shot" />
+          <img src="images/opt/meghna6-tile.webp" width="760" height="506" data-full="images/opt/meghna6.webp" loading="lazy" decoding="async" alt="Meghna Stockpile Drone Shot" />
         </div>
         <div class="gallery-item" data-gallery-index="26" data-type="image" data-alt="Screened Aggregates">
-          <img src="images/stonee.jpeg" loading="lazy" decoding="async" alt="Screened Aggregates" />
+          <img src="images/opt/stonee-tile.webp" width="760" height="428" data-full="images/opt/stonee.webp" loading="lazy" decoding="async" alt="Screened Aggregates" />
         </div>
       </div>
     </div>
@@ -639,7 +666,7 @@
     <button type="button" class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Previous image">‹</button>
     <div class="lightbox-stage">
       <img id="lightboxImage" src="" alt="" />
-      <video id="lightboxVideo" src="" controls autoplay muted playsinline style="display:none;"></video>
+      <video id="lightboxVideo" src="" controls muted playsinline style="display:none;"></video>
       <div class="lightbox-caption" id="lightboxCaption"></div>
     </div>
     <button type="button" class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Next image">›</button>
@@ -731,7 +758,8 @@
 
       <div class="yards-grid">
         <div class="yard-card">
-          <div class="yard-img" style="background-image:url('images/4ef1d166fcf2442dac174e3606653de7.jpeg');">
+          <div class="yard-img">
+            <img class="yard-photo" src="images/opt/4ef1d166fcf2442dac174e3606653de7-card.webp" width="760" height="570" alt="" loading="lazy" decoding="async" />
             <div class="yard-meta">
               <h4>Pagla Yard</h4>
               <div class="loc">Narayanganj · River Belt</div>
@@ -744,7 +772,8 @@
         </div>
 
         <div class="yard-card">
-          <div class="yard-img" style="background-image:url('images/e4741d0cbed040a7878c2c81a524e74b.jpg');">
+          <div class="yard-img">
+            <img class="yard-photo" src="images/opt/e4741d0cbed040a7878c2c81a524e74b-card.webp" width="400" height="225" alt="" loading="lazy" decoding="async" />
             <div class="yard-meta">
               <h4>Meghna Yard</h4>
               <div class="loc">Meghna River · Central</div>
@@ -757,7 +786,8 @@
         </div>
 
         <div class="yard-card">
-          <div class="yard-img" style="background-image:url('images/Payra2.png');">
+          <div class="yard-img">
+            <img class="yard-photo" src="images/opt/payra2-card.webp" width="760" height="622" alt="" loading="lazy" decoding="async" />
             <div class="yard-meta">
               <h4>Payra Yard</h4>
               <div class="loc">Patuakhali · South</div>
@@ -770,7 +800,8 @@
         </div>
 
         <div class="yard-card">
-          <div class="yard-img" style="background-image:url('images/Ctg-Yard.png');">
+          <div class="yard-img">
+            <img class="yard-photo" src="images/opt/ctg-yard-card.webp" width="736" height="367" alt="" loading="lazy" decoding="async" />
             <div class="yard-meta">
               <h4>Chottagram Yard</h4>
               <div class="loc">Chittagong · Port</div>
@@ -783,7 +814,8 @@
         </div>
 
         <div class="yard-card">
-          <div class="yard-img" style="background-image:url('images/Rupshighat3.JPG');">
+          <div class="yard-img">
+            <img class="yard-photo" src="images/opt/rupshighat3-card.webp" width="760" height="570" alt="" loading="lazy" decoding="async" />
             <div class="yard-meta">
               <h4>Rupshi Kanchon Yard</h4>
               <div class="loc">Narayanganj · East Dhaka</div>
@@ -796,7 +828,8 @@
         </div>
 
         <div class="yard-card">
-          <div class="yard-img" style="background-image:url('images/Bosila1.jpeg');">
+          <div class="yard-img">
+            <img class="yard-photo" src="images/opt/bosila1-card.webp" width="720" height="367" alt="" loading="lazy" decoding="async" />
             <div class="yard-meta">
               <h4>Basila Yard</h4>
               <div class="loc">Dhaka · West</div>
@@ -1082,6 +1115,12 @@
             <textarea name="Message" id="msg" placeholder="Tell us about your project..."></textarea>
           </div>
 
+          <!-- Spam trap: hidden from visitors, left empty by people, filled in by bots -->
+          <div class="form-trap" aria-hidden="true">
+            <label for="website">Leave this field empty</label>
+            <input type="text" name="website" id="website" tabindex="-1" autocomplete="off" />
+          </div>
+
           <button type="submit" class="btn form-submit">Send Enquiry</button>
           <div id="formToast" class="form-toast" role="alert" aria-live="polite"></div>
         </form>
@@ -1095,12 +1134,12 @@
       <div class="foot-grid">
         <div class="foot-col">
           <div class="foot-brand">
-            <img class="logo-mark" src="images/fb-group-logo.webp" alt="F B Group logo" width="35" height="50" />
+            <img class="logo-mark" src="images/fb-group-logo.webp" alt="F B Group logo" width="35" height="50" loading="lazy" />
             <div>
               <h4>F B Group</h4>
             </div>
           </div>
-          <p>Supplying premium UAE-sourced aggregates to the construction sector across Bangladesh.</p>
+          <p>F B Group supplies premium imported stone and quality local sand, delivering reliable bulk materials and integrated logistics solutions to construction projects across Bangladesh.</p>
         </div>
         <div class="foot-col">
           <h5>Company</h5>
@@ -1152,7 +1191,7 @@
   </footer>
 
   <!-- Main JavaScript File -->
-  <script src="js/main.js"></script>
+  <script src="js/main.js" defer></script>
 </body>
 
 </html>

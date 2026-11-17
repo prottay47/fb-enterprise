@@ -34,10 +34,9 @@ function esc(value) {
     .replace(/'/g, '&#39;');
 }
 
-/** Image URLs only ever come from our own folders; encode them for use inside url('...'). */
-function cssUrl(src) {
-  const safe = /^\/(images|uploads)\//.test(src) ? src : '';
-  return encodeURI(safe).replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29');
+/** Image URLs only ever come from our own folders. */
+function imgUrl(src) {
+  return /^\/(images|uploads)\//.test(src) ? encodeURI(src) : '';
 }
 
 function renderCards(type, products, indent = '        ') {
@@ -59,7 +58,9 @@ function renderCards(type, products, indent = '        ') {
       : '';
     const badge = p.label ? `<span class="product-tag">${esc(p.label)}</span>` : '';
     return `${indent}<div class="product-card">
-${indent}  <div class="product-img" style="background-image:url('${cssUrl(p.image)}');" role="img" aria-label="${esc(p.name)}">${badge}</div>
+${indent}  <div class="product-img">
+${indent}    <img src="${esc(imgUrl(p.image))}" alt="${esc(p.name)}" width="800" height="500" loading="lazy" decoding="async" />${badge}
+${indent}  </div>
 ${indent}  <div class="product-body">
 ${indent}    <h3>${esc(p.name)}</h3>
 ${indent}    <p>${esc(p.description)}</p>${specs}

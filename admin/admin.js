@@ -109,7 +109,7 @@
   }
 
   function render() {
-    const { banners, defaults, max } = state;
+    const { banners, max } = state;
     const pill = $('countPill');
     pill.textContent = `${banners.length} / ${max}`;
     pill.classList.toggle('is-full', banners.length >= max);
@@ -121,33 +121,6 @@
       ? '<strong>All 5 slots are used.</strong> Delete a banner to add another.'
       : '<strong>Choose images</strong> or drag them here';
 
-    // Defaults
-    $('defaultsPanel').hidden = banners.length > 0;
-    if (!banners.length) {
-      $('defaultGrid').innerHTML = '';
-      defaults.forEach((d, i) => {
-        const fig = document.createElement('figure');
-        const pair = document.createElement('div');
-        pair.className = 'default-pair';
-        const img = document.createElement('img');
-        img.src = d.srcSmall || d.src;
-        img.alt = d.alt;
-        img.loading = 'lazy';
-        pair.appendChild(img);
-        if (d.srcPhone) {
-          const ph = document.createElement('img');
-          ph.src = d.srcPhone;
-          ph.alt = '';
-          ph.className = 'default-phone';
-          ph.loading = 'lazy';
-          pair.appendChild(ph);
-        }
-        const cap = document.createElement('figcaption');
-        cap.textContent = d.srcPhone ? `Default ${i + 1} · computer and phone versions` : `Default ${i + 1}`;
-        fig.append(pair, cap);
-        $('defaultGrid').appendChild(fig);
-      });
-    }
 
     // Custom list
     $('listPanel').hidden = banners.length === 0;
@@ -455,7 +428,7 @@
 
   /* ================= Pages ================= */
 
-  const VIEWS = ['banners', 'stone', 'sand'];
+  const VIEWS = ['banners', 'stone', 'sand', 'quotes'];
 
   function route() {
     let view = (location.hash || '#banners').slice(1);
@@ -466,8 +439,11 @@
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     $('view-banners').hidden = view !== 'banners';
-    $('view-products').hidden = view === 'banners';
-    if (view !== 'banners') openProducts(view);
+    $('view-products').hidden = view !== 'stone' && view !== 'sand';
+    $('view-quotes').hidden = view !== 'quotes';
+    if (view === 'stone' || view === 'sand') openProducts(view);
+    if (view === 'quotes') loadQuotes();
+    else refreshQuoteBadge();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', () => { if (!screens.app.hidden) route(); });
@@ -793,6 +769,152 @@
       toast(err.message, true);
     }
   }
+
+  /* ================= Quotation requests ================= */
+
+  const quotes = { items: [], filter: 'all' };
+
+  function setNewCount(n) {
+    document.querySelectorAll('[data-new-count]').forEach((el) => {
+      el.textContent = n > 99 ? '99+' : String(n);
+      el.hidden = n === 0;
+      el.setAttribute('aria-label', `${n} new`);
+    });
+  }
+
+  async function refreshQuoteBadge() {
+    try {
+      const data = await api('/api/admin/quotes');
+      quotes.items = data.quotes;
+      setNewCount(data.newCount);
+    } catch { /* badge only */ }
+  }
+
+  async function loadQuotes() {
+    try {
+      const data = await api('/api/admin/quotes');
+      quotes.items = data.quotes;
+      renderQuotes();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function formatWhen(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderQuotes() {
+    const all = quotes.items;
+    const counts = {
+      all: all.length,
+      new: all.filter((q) => q.status === 'new').length,
+      contacted: all.filter((q) => q.status === 'contacted').length,
+    };
+    setNewCount(counts.new);
+    document.querySelectorAll('[data-count]').forEach((el) => { el.textContent = `(${counts[el.dataset.count]})`; });
+    document.querySelectorAll('.seg-btn').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === quotes.filter)));
+
+    const shown = quotes.filter === 'all' ? all : all.filter((q) => q.status === quotes.filter);
+    const list = $('quoteList');
+    list.innerHTML = '';
+    const empty = $('quoteEmpty');
+    empty.hidden = shown.length > 0;
+    empty.textContent = all.length === 0
+      ? 'No quotation requests yet. They appear here as soon as someone sends the Request a Quote form on the homepage.'
+      : 'No requests in this list.';
+
+    shown.forEach((q) => list.appendChild(quoteItem(q)));
+  }
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  function quoteItem(q) {
+    const li = el('li', 'quote' + (q.status === 'new' ? ' is-new' : ''));
+    li.dataset.id = q.id;
+
+    const head = el('div', 'quote-head');
+    const who = el('div', 'quote-who');
+    who.append(el('strong', '', q.name));
+    if (q.company) who.append(el('span', '', q.company));
+    const meta = el('div', 'quote-meta');
+    meta.append(el('time', '', formatWhen(q.createdAt)));
+    meta.lastChild.dateTime = q.createdAt;
+    meta.append(el('span', `quote-status ${q.status}`, q.status === 'new' ? 'New' : 'Contacted'));
+    head.append(who, meta);
+
+    const dl = el('dl', 'quote-details');
+    const add = (label, value, href) => {
+      if (!value) return;
+      const row = el('div');
+      row.append(el('dt', '', label));
+      const dd = el('dd');
+      if (href) {
+        const a = el('a', '', value);
+        a.href = href;
+        dd.append(a);
+      } else dd.textContent = value;
+      row.append(dd);
+      dl.append(row);
+    };
+    add('Product', q.product);
+    add('Quantity', q.quantity);
+    add('Discharge port', q.port);
+    add('Email', q.email, `mailto:${encodeURIComponent(q.email).replace(/%40/g, '@')}`);
+    add('Phone', q.phone, `tel:${q.phone.replace(/[^\d+]/g, '')}`);
+
+    li.append(head, dl);
+    if (q.message) li.append(el('p', 'quote-message', q.message));
+
+    const actions = el('div', 'quote-actions');
+    const reply = el('a', 'btn btn-primary btn-sm', 'Reply by email');
+    const subject = `Your quotation request${q.product ? ` – ${q.product}` : ''} | F B Group`;
+    reply.href = `mailto:${encodeURIComponent(q.email).replace(/%40/g, '@')}?subject=${encodeURIComponent(subject)}`;
+    const toggle = el('button', 'btn btn-ghost btn-sm', q.status === 'new' ? 'Mark as contacted' : 'Mark as new');
+    toggle.type = 'button';
+    toggle.addEventListener('click', () => setQuoteStatus(q, q.status === 'new' ? 'contacted' : 'new'));
+    const del = el('button', 'btn btn-danger btn-sm delete-btn', 'Delete');
+    del.type = 'button';
+    del.addEventListener('click', () => deleteQuote(q));
+    actions.append(reply, toggle, del);
+    li.append(actions);
+    return li;
+  }
+
+  async function setQuoteStatus(q, status) {
+    try {
+      const res = await api(`/api/admin/quotes/${q.id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      quotes.items = quotes.items.map((x) => (x.id === q.id ? res.quote : x));
+      renderQuotes();
+      toast(status === 'contacted' ? 'Marked as contacted' : 'Marked as new');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function deleteQuote(q) {
+    $('confirmText').textContent = `The request from ${q.name} will be deleted permanently. This can't be undone.`;
+    if (!(await confirmDelete('Delete this request?', 'Delete request'))) return;
+    try {
+      await api(`/api/admin/quotes/${q.id}`, { method: 'DELETE' });
+      quotes.items = quotes.items.filter((x) => x.id !== q.id);
+      renderQuotes();
+      toast('Request deleted');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  document.querySelectorAll('.seg-btn').forEach((b) => b.addEventListener('click', () => {
+    quotes.filter = b.dataset.filter;
+    renderQuotes();
+  }));
 
   boot();
 })();

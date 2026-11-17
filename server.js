@@ -28,6 +28,8 @@ const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const BANNERS_FILE = path.join(DATA_DIR, 'banners.json');
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const PRODUCTS_SEED = path.join(ROOT, 'products.seed.json');
+const QUOTES_FILE = path.join(DATA_DIR, 'quotes.json');
+const MAX_QUOTES_KEPT = 2000;                // oldest are dropped beyond this
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
@@ -43,9 +45,9 @@ const SESSION_TTL = 12 * 60 * 60 * 1000;    // 12 hours
 
 /** Shown on the homepage whenever no banner has been uploaded. */
 const DEFAULT_BANNERS = [
-  { id: 'default-1', src: '/images/banners/default-1.jpg', srcSmall: '/images/banners/default-1-1000.jpg', srcPhone: '/images/banners/default-1-phone.webp', alt: 'Bulk carrier discharging stone aggregate into a lighter vessel', focusX: 55, focusY: 50 },
-  { id: 'default-2', src: '/images/banners/default-2.jpg', srcSmall: '/images/banners/default-2-1000.jpg', srcPhone: '/images/banners/default-2-phone.webp', alt: 'Excavator unloading stone aggregate from a barge into a dump truck at a river ghat', focusX: 62, focusY: 50 },
-  { id: 'default-3', src: '/images/banners/default-3.jpg', srcSmall: '/images/banners/default-3-1000.jpg', srcPhone: '/images/banners/default-3-phone.webp', alt: 'Floating crane transferring aggregate from a mother vessel to a lighter vessel', focusX: 58, focusY: 50 },
+  { id: 'default-1', src: '/images/opt/default-1.webp', srcSmall: '/images/opt/default-1-1000.webp', srcPhone: '/images/banners/default-1-phone.webp', alt: 'Bulk carrier discharging stone aggregate into a lighter vessel', focusX: 55, focusY: 50 },
+  { id: 'default-2', src: '/images/opt/default-2.webp', srcSmall: '/images/opt/default-2-1000.webp', srcPhone: '/images/banners/default-2-phone.webp', alt: 'Excavator unloading stone aggregate from a barge into a dump truck at a river ghat', focusX: 62, focusY: 50 },
+  { id: 'default-3', src: '/images/opt/default-3.webp', srcSmall: '/images/opt/default-3-1000.webp', srcPhone: '/images/banners/default-3-phone.webp', alt: 'Floating crane transferring aggregate from a mother vessel to a lighter vessel', focusX: 58, focusY: 50 },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -320,6 +322,66 @@ function findProduct(data, id) {
   return null;
 }
 
+/* ---------- Quotation requests ---------- */
+
+let quotesWriteQueue = Promise.resolve();
+const quoteAttempts = new Map(); // ip -> { count, resetAt }
+
+async function readQuotes() {
+  try {
+    const data = JSON.parse(await fsp.readFile(QUOTES_FILE, 'utf8'));
+    return Array.isArray(data.quotes) ? data.quotes : [];
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
+  }
+}
+
+function writeQuotes(quotes) {
+  quotesWriteQueue = quotesWriteQueue.catch(() => {}).then(async () => {
+    await fsp.mkdir(DATA_DIR, { recursive: true });
+    const tmp = QUOTES_FILE + '.tmp';
+    await fsp.writeFile(tmp, JSON.stringify({ quotes }, null, 2));
+    await fsp.rename(tmp, QUOTES_FILE);
+  });
+  return quotesWriteQueue;
+}
+
+/** At most 5 requests per visitor every 10 minutes. */
+function quoteAllowed(ip) {
+  const now = Date.now();
+  const entry = quoteAttempts.get(ip);
+  if (!entry || entry.resetAt < now) {
+    quoteAttempts.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000 });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= 5;
+}
+
+function cleanMultiline(v, max) {
+  return String(v ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n').trim().slice(0, max);
+}
+
+function readQuoteFields(body) {
+  const q = {
+    name: cleanText(body.name, 100),
+    company: cleanText(body.company, 120),
+    email: cleanText(body.email, 120),
+    phone: cleanText(body.phone, 40),
+    product: cleanText(body.product, 100),
+    quantity: cleanText(body.quantity, 60),
+    port: cleanText(body.port, 80),
+    message: cleanMultiline(body.message, 2000),
+  };
+  if (!q.name) return { error: 'Please enter your name.', field: 'name' };
+  if (!q.email) return { error: 'Please enter your email address.', field: 'email' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q.email)) return { error: 'Please enter a valid email address.', field: 'email' };
+  if (!q.product) return { error: 'Please choose a product.', field: 'product' };
+  return { quote: q };
+}
+
 function publicBanner(b) {
   return {
     id: b.id,
@@ -435,6 +497,7 @@ setInterval(() => {
   const now = Date.now();
   for (const [t, exp] of sessions) if (exp < now) sessions.delete(t);
   for (const [ip, e] of loginAttempts) if (e.resetAt < now) loginAttempts.delete(ip);
+  for (const [ip, e] of quoteAttempts) if (e.resetAt < now) quoteAttempts.delete(ip);
 }, 10 * 60 * 1000).unref();
 
 /* ------------------------------------------------------------------ */
@@ -479,6 +542,23 @@ async function handleApi(req, res, pathname) {
     return banners.length
       ? sendJson(res, 200, { source: 'custom', banners: banners.map(publicBanner) })
       : sendJson(res, 200, { source: 'default', banners: DEFAULT_BANNERS });
+  }
+
+  // Public: the homepage quotation form
+  if (pathname === '/api/quotes' && method === 'POST') {
+    if (!sameOrigin(req)) return sendJson(res, 403, { error: 'Forbidden' });
+    const body = await readJson(req);
+    // Hidden "website" field: people never see it, spam bots fill it in. Pretend it worked.
+    if (body.website) return sendJson(res, 201, { ok: true });
+    if (!quoteAllowed(clientIp(req))) {
+      return sendJson(res, 429, { error: 'You have sent several requests in a short time. Please wait a few minutes and try again.' });
+    }
+    const { quote, error, field } = readQuoteFields(body);
+    if (error) return sendJson(res, 400, { error, field });
+    const quotes = await readQuotes();
+    quotes.unshift({ id: crypto.randomBytes(12).toString('hex'), ...quote, status: 'new', createdAt: new Date().toISOString() });
+    await writeQuotes(quotes.slice(0, MAX_QUOTES_KEPT));
+    return sendJson(res, 201, { ok: true });
   }
 
   if (!pathname.startsWith('/api/admin/')) return sendJson(res, 404, { error: 'Not found' });
@@ -557,6 +637,29 @@ async function handleApi(req, res, pathname) {
     const sorted = ids.map((id) => banners.find((b) => b.id === id));
     await writeBanners(sorted);
     return sendJson(res, 200, { banners: sorted.map(publicBanner) });
+  }
+
+  /* ---------- Quotation requests ---------- */
+  if (pathname === '/api/admin/quotes' && method === 'GET') {
+    const quotes = await readQuotes();
+    return sendJson(res, 200, { quotes, newCount: quotes.filter((q) => q.status === 'new').length });
+  }
+
+  const mQuote = /^\/api\/admin\/quotes\/([a-f0-9]{24})$/.exec(pathname);
+  if (mQuote && (method === 'PATCH' || method === 'DELETE')) {
+    const quotes = await readQuotes();
+    const i = quotes.findIndex((q) => q.id === mQuote[1]);
+    if (i === -1) return sendJson(res, 404, { error: 'Request not found. Reload the page and try again.' });
+    if (method === 'DELETE') {
+      quotes.splice(i, 1);
+      await writeQuotes(quotes);
+      return sendJson(res, 200, { ok: true });
+    }
+    const body = await readJson(req);
+    if (!['new', 'contacted'].includes(body.status)) return sendJson(res, 400, { error: 'Unknown status.' });
+    quotes[i].status = body.status;
+    await writeQuotes(quotes);
+    return sendJson(res, 200, { quote: quotes[i] });
   }
 
   /* ---------- Products ---------- */
