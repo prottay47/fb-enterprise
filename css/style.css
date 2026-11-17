@@ -228,10 +228,9 @@ nav ul a:hover::after {
 .hero-slide {
   position: absolute;
   inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
-  max-width: none;
-  object-fit: cover;
   opacity: 0;
   transform: scale(1.06);
   transition: opacity 1.2s ease, transform 7s linear;
@@ -240,6 +239,14 @@ nav ul a:hover::after {
 .hero-slide.is-active {
   opacity: 1;
   transform: scale(1);
+}
+
+.hero-slide img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
 }
 
 .hero-controls {
@@ -482,21 +489,6 @@ section {
   object-fit: cover;
 }
 
-.about-img::after {
-  content: 'Est. UAE';
-  position: absolute;
-  bottom: 30px;
-  left: 30px;
-  background: var(--paper);
-  color: var(--ink);
-  padding: 18px 26px;
-  border-radius: 6px;
-  font-family: var(--font-serif);
-  font-size: 1.1rem;
-  font-weight: 700;
-  box-shadow: var(--shadow);
-}
-
 .about-content .eyebrow {
   display: block;
   margin-bottom: 14px;
@@ -543,6 +535,13 @@ section {
 /* ---------- PRODUCTS SECTION ---------- */
 .products {
   background: var(--bg);
+}
+
+.product-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--muted);
+  padding: 32px 0;
 }
 
 .products--sand {
@@ -872,22 +871,9 @@ section {
   color: var(--accent-light);
 }
 
-.route-line .distance {
-  position: absolute;
-  top: -28px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.72rem;
-  padding: 3px 10px;
-  border-radius: 20px;
-  white-space: nowrap;
-}
-
 .route-meta {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 30px;
   margin-top: 50px;
   padding-top: 40px;
@@ -912,20 +898,20 @@ section {
   color: #fff;
 }
 
-/* ---------- WHY CHOOSE US (3 PILLARS) ---------- */
+/* ---------- LOGISTICS ADVANTAGE (4 CARDS) ---------- */
 .choose {
   background: var(--bg-alt);
 }
 
 .choose-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 32px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
 }
 
 .choose-card {
   background: var(--paper);
-  padding: 50px 36px;
+  padding: 46px 26px;
   border-radius: 8px;
   border-bottom: 4px solid var(--accent);
   text-align: center;
@@ -981,6 +967,14 @@ section {
   line-height: 1.65;
   position: relative;
   z-index: 1;
+}
+
+@media (max-width: 1100px) {
+  .choose-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .choose-grid { grid-template-columns: 1fr; }
 }
 
 /* ---------- YARDS SECTION ---------- */
@@ -1645,8 +1639,7 @@ footer {
   
   .product-grid,
   .gallery-grid,
-  .yards-grid,
-  .choose-grid {
+  .yards-grid {
     grid-template-columns: 1fr;
   }
   
@@ -1655,15 +1648,18 @@ footer {
     gap: 24px;
   }
   
+  /* Vertical line drawn upright (not rotated) so the ship icon stays the right way up */
   .route-line {
-    transform: rotate(90deg);
-    width: 80px;
-    margin: 12px auto;
+    width: 2px;
+    min-width: 0;
+    height: 80px;
+    margin: 0 auto;
+    background: linear-gradient(180deg, transparent, var(--accent-light), transparent);
   }
-  
-  .route-line .distance {
-    transform: translateX(-50%) rotate(-90deg);
-    top: -10px;
+
+  .route-line::before {
+    padding: 6px 0;
+    line-height: 1;
   }
   
   .route-meta {
@@ -1784,13 +1780,6 @@ footer {
   .hero-tag {
     font-size: 0.7rem;
     padding-left: 32px;
-  }
-  
-  .about-img::after {
-    padding: 12px 18px;
-    font-size: 0.95rem;
-    bottom: 18px;
-    left: 18px;
   }
   
   .product-body {

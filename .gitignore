@@ -24,3 +24,6 @@ $RECYCLE.BIN/
 
 # Dashboard uploads (kept on the server volume, not in the repo)
 data/
+
+# Local editor / preview settings (contain a local test password)
+.claude/

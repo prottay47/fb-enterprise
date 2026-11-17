@@ -18,25 +18,32 @@ const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
 const zlib = require('zlib');
+const { PRODUCT_TYPES, renderPage } = require('./product-render');
 
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = __dirname;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const BANNERS_FILE = path.join(DATA_DIR, 'banners.json');
+const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
+const PRODUCTS_SEED = path.join(ROOT, 'products.seed.json');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 const MAX_BANNERS = 5;
+const MAX_PRODUCTS = 30;                     // per type (stone, sand)
+const MAX_LIST_ITEMS = 5;                    // sizes / FM values per product
+const MAX_PRODUCT_IMAGE = 4 * 1024 * 1024;
 const MAX_BODY = 14 * 1024 * 1024;          // JSON body with two base64 images
 const MAX_IMAGE = 8 * 1024 * 1024;          // decoded large image
 const MAX_IMAGE_SMALL = 3 * 1024 * 1024;    // decoded mobile image
+const MAX_IMAGE_PHONE = 4 * 1024 * 1024;    // decoded portrait phone version
 const SESSION_TTL = 12 * 60 * 60 * 1000;    // 12 hours
 
 /** Shown on the homepage whenever no banner has been uploaded. */
 const DEFAULT_BANNERS = [
-  { id: 'default-1', src: '/images/banners/default-1.jpg', srcSmall: '/images/banners/default-1-1000.jpg', alt: 'Bulk carrier discharging stone aggregate into a lighter vessel', focusX: 55, focusY: 50 },
-  { id: 'default-2', src: '/images/banners/default-2.jpg', srcSmall: '/images/banners/default-2-1000.jpg', alt: 'Excavator unloading stone aggregate from a barge into a dump truck at a river ghat', focusX: 62, focusY: 50 },
-  { id: 'default-3', src: '/images/banners/default-3.jpg', srcSmall: '/images/banners/default-3-1000.jpg', alt: 'Floating crane transferring aggregate from a mother vessel to a lighter vessel', focusX: 58, focusY: 50 },
+  { id: 'default-1', src: '/images/banners/default-1.jpg', srcSmall: '/images/banners/default-1-1000.jpg', srcPhone: '/images/banners/default-1-phone.webp', alt: 'Bulk carrier discharging stone aggregate into a lighter vessel', focusX: 55, focusY: 50 },
+  { id: 'default-2', src: '/images/banners/default-2.jpg', srcSmall: '/images/banners/default-2-1000.jpg', srcPhone: '/images/banners/default-2-phone.webp', alt: 'Excavator unloading stone aggregate from a barge into a dump truck at a river ghat', focusX: 62, focusY: 50 },
+  { id: 'default-3', src: '/images/banners/default-3.jpg', srcSmall: '/images/banners/default-3-1000.jpg', srcPhone: '/images/banners/default-3-phone.webp', alt: 'Floating crane transferring aggregate from a mother vessel to a lighter vessel', focusX: 58, focusY: 50 },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -157,7 +164,7 @@ async function serveStatic(req, res, pathname) {
   // Uploaded banners
   if (pathname.startsWith('/uploads/')) {
     const name = pathname.slice('/uploads/'.length);
-    if (!/^[a-f0-9]{24}(-sm)?\.(jpg|png|webp)$/.test(name)) return notFound(res);
+    if (!/^[a-f0-9]{24}(-sm|-ph-[a-f0-9]{8})?\.(jpg|png|webp)$/.test(name)) return notFound(res);
     const ok = await sendFile(req, res, path.join(UPLOAD_DIR, name), 'public, max-age=31536000, immutable');
     return ok || notFound(res);
   }
@@ -168,6 +175,8 @@ async function serveStatic(req, res, pathname) {
     if (!path.extname(rel)) rel = 'index.html';
     else return notFound(res);
   }
+
+  if (rel === 'index.html') return serveHome(req, res);
 
   const filePath = path.join(ROOT, rel);
   if (!filePath.startsWith(ROOT + path.sep)) return notFound(res);
@@ -181,6 +190,32 @@ async function serveStatic(req, res, pathname) {
     : 'public, max-age=2592000';
   const ok = await sendFile(req, res, filePath, cache, isAdmin ? adminHeaders : {});
   return ok || notFound(res);
+}
+
+/** The homepage, with product cards, form options and footer links built from saved products. */
+async function serveHome(req, res) {
+  const [html, products] = await Promise.all([
+    fsp.readFile(path.join(ROOT, 'index.html'), 'utf8'),
+    readProducts(),
+  ]);
+  const body = Buffer.from(renderPage(html, products), 'utf8');
+  const etag = `W/"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 20)}"`;
+  const headers = baseHeaders({
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    ETag: etag,
+    Vary: 'Accept-Encoding',
+  });
+  if (req.headers['if-none-match'] === etag) {
+    res.writeHead(304, headers);
+    return res.end();
+  }
+  const gzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+  const out = gzip ? zlib.gzipSync(body, { level: 6 }) : body;
+  if (gzip) headers['Content-Encoding'] = 'gzip';
+  headers['Content-Length'] = out.length;
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : out);
 }
 
 function notFound(res) {
@@ -214,11 +249,81 @@ function writeBanners(banners) {
   return writeQueue;
 }
 
+/* ---------- Products ---------- */
+
+let productsWriteQueue = Promise.resolve();
+
+async function readProducts() {
+  let data;
+  try {
+    data = JSON.parse(await fsp.readFile(PRODUCTS_FILE, 'utf8'));
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+    // Nothing saved yet: start from the products that shipped with the site
+    data = JSON.parse(await fsp.readFile(PRODUCTS_SEED, 'utf8'));
+  }
+  return { stone: Array.isArray(data.stone) ? data.stone : [], sand: Array.isArray(data.sand) ? data.sand : [] };
+}
+
+function writeProducts(data) {
+  productsWriteQueue = productsWriteQueue.catch(() => {}).then(async () => {
+    await fsp.mkdir(DATA_DIR, { recursive: true });
+    const tmp = PRODUCTS_FILE + '.tmp';
+    await fsp.writeFile(tmp, JSON.stringify(data, null, 2));
+    await fsp.rename(tmp, PRODUCTS_FILE);
+  });
+  return productsWriteQueue;
+}
+
+function cleanText(v, max) {
+  return String(v ?? '').replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+/** Checks and tidies the product fields for a type. Returns { product } or { error }. */
+function readProductFields(type, body) {
+  const t = PRODUCT_TYPES[type];
+  const name = cleanText(body.name, 80);
+  const description = cleanText(body.description, 240);
+  if (!name) return { error: 'Please enter a product name.', field: 'name' };
+  if (!description) return { error: 'Please enter a short description.', field: 'description' };
+  const rawList = Array.isArray(body[t.list.key]) ? body[t.list.key] : [];
+  const list = rawList.map((v) => cleanText(v, 30)).filter(Boolean);
+  if (list.length > MAX_LIST_ITEMS) return { error: `Add at most ${MAX_LIST_ITEMS} ${t.list.label} values.`, field: t.list.key };
+  const label = cleanText(body.label, 24);
+  const product = { name, label, description, [t.list.key]: list };
+  for (const f of t.fields) product[f.key] = cleanText(body[f.key], 60);
+  return { product };
+}
+
+async function saveProductImage(dataUrl) {
+  const img = decodeImage(dataUrl, MAX_PRODUCT_IMAGE);
+  if (!img) return null;
+  await fsp.mkdir(UPLOAD_DIR, { recursive: true });
+  const file = `${crypto.randomBytes(12).toString('hex')}.${img.ext}`;
+  await fsp.writeFile(path.join(UPLOAD_DIR, file), img.buf);
+  return `/uploads/${file}`;
+}
+
+async function removeUploaded(src) {
+  if (typeof src === 'string' && src.startsWith('/uploads/')) {
+    await fsp.unlink(path.join(UPLOAD_DIR, path.basename(src))).catch(() => {});
+  }
+}
+
+function findProduct(data, id) {
+  for (const type of Object.keys(PRODUCT_TYPES)) {
+    const i = data[type].findIndex((p) => p.id === id);
+    if (i !== -1) return { type, index: i, product: data[type][i] };
+  }
+  return null;
+}
+
 function publicBanner(b) {
   return {
     id: b.id,
     src: `/uploads/${b.file}`,
     srcSmall: b.fileSmall ? `/uploads/${b.fileSmall}` : null,
+    srcPhone: b.filePhone ? `/uploads/${b.filePhone}` : null,
     alt: b.alt,
     focusX: b.focusX,
     focusY: b.focusY,
@@ -439,6 +544,98 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, 200, { banners: sorted.map(publicBanner) });
   }
 
+  /* ---------- Products ---------- */
+  if (pathname === '/api/admin/products' && method === 'GET') {
+    const type = new URL(req.url, 'http://x').searchParams.get('type');
+    if (!PRODUCT_TYPES[type]) return sendJson(res, 400, { error: 'Unknown product type.' });
+    const data = await readProducts();
+    return sendJson(res, 200, { type, max: MAX_PRODUCTS, maxList: MAX_LIST_ITEMS, products: data[type] });
+  }
+
+  if (pathname === '/api/admin/products' && method === 'POST') {
+    const body = await readJson(req);
+    const type = body.type;
+    if (!PRODUCT_TYPES[type]) return sendJson(res, 400, { error: 'Unknown product type.' });
+    const data = await readProducts();
+    if (data[type].length >= MAX_PRODUCTS) return sendJson(res, 400, { error: `You can have up to ${MAX_PRODUCTS} products here.` });
+    const { product, error, field } = readProductFields(type, body);
+    if (error) return sendJson(res, 400, { error, field });
+    const image = await saveProductImage(body.image);
+    if (!image) return sendJson(res, 400, { error: 'Please add a JPG, PNG or WebP image under 4 MB.', field: 'image' });
+    const saved = { id: crypto.randomBytes(12).toString('hex'), ...product, image };
+    data[type].push(saved);
+    await writeProducts(data);
+    return sendJson(res, 201, { product: saved });
+  }
+
+  if (pathname === '/api/admin/products/order' && method === 'PUT') {
+    const body = await readJson(req);
+    const type = body.type;
+    if (!PRODUCT_TYPES[type]) return sendJson(res, 400, { error: 'Unknown product type.' });
+    const data = await readProducts();
+    const ids = Array.isArray(body.ids) ? body.ids : [];
+    const list = data[type];
+    if (ids.length !== list.length || !ids.every((id) => list.some((p) => p.id === id))) {
+      return sendJson(res, 400, { error: 'The product list changed. Reload the page and try again.' });
+    }
+    data[type] = ids.map((id) => list.find((p) => p.id === id));
+    await writeProducts(data);
+    return sendJson(res, 200, { products: data[type] });
+  }
+
+  const mProd = /^\/api\/admin\/products\/([a-z0-9-]{1,40})$/.exec(pathname);
+  if (mProd && (method === 'PUT' || method === 'DELETE')) {
+    const data = await readProducts();
+    const found = findProduct(data, mProd[1]);
+    if (!found) return sendJson(res, 404, { error: 'Product not found. Reload the page and try again.' });
+    const { type, index, product: current } = found;
+
+    if (method === 'DELETE') {
+      data[type].splice(index, 1);
+      await writeProducts(data);
+      await removeUploaded(current.image);
+      return sendJson(res, 200, { ok: true });
+    }
+
+    const body = await readJson(req);
+    const { product, error, field } = readProductFields(type, body);
+    if (error) return sendJson(res, 400, { error, field });
+    let image = current.image;
+    if (body.image) {
+      image = await saveProductImage(body.image);
+      if (!image) return sendJson(res, 400, { error: 'Please add a JPG, PNG or WebP image under 4 MB.', field: 'image' });
+    }
+    const updated = { id: current.id, ...product, image };
+    data[type][index] = updated;
+    await writeProducts(data);
+    if (image !== current.image) await removeUploaded(current.image);
+    return sendJson(res, 200, { product: updated });
+  }
+
+  // Phone version (portrait image shown on screens up to 767px wide)
+  const mp = /^\/api\/admin\/banners\/([a-f0-9]{24})\/phone$/.exec(pathname);
+  if (mp && (method === 'PUT' || method === 'DELETE')) {
+    const banners = await readBanners();
+    const banner = banners.find((b) => b.id === mp[1]);
+    if (!banner) return sendJson(res, 404, { error: 'Banner not found.' });
+    const old = banner.filePhone;
+    if (method === 'PUT') {
+      const body = await readJson(req);
+      const img = decodeImage(body.image, MAX_IMAGE_PHONE);
+      if (!img) return sendJson(res, 400, { error: 'Please upload a JPG, PNG or WebP image under 4 MB.' });
+      await fsp.mkdir(UPLOAD_DIR, { recursive: true });
+      // A new name on every upload, so browsers never show a cached older version
+      const file = `${banner.id}-ph-${crypto.randomBytes(4).toString('hex')}.${img.ext}`;
+      await fsp.writeFile(path.join(UPLOAD_DIR, file), img.buf);
+      banner.filePhone = file;
+    } else {
+      banner.filePhone = null;
+    }
+    await writeBanners(banners);
+    if (old) await fsp.unlink(path.join(UPLOAD_DIR, old)).catch(() => {});
+    return sendJson(res, 200, { banner: publicBanner(banner) });
+  }
+
   const m = /^\/api\/admin\/banners\/([a-f0-9]{24})$/.exec(pathname);
   if (m && method === 'PATCH') {
     const body = await readJson(req);
@@ -457,7 +654,7 @@ async function handleApi(req, res, pathname) {
     const banner = banners.find((b) => b.id === m[1]);
     if (!banner) return sendJson(res, 404, { error: 'Banner not found.' });
     await writeBanners(banners.filter((b) => b !== banner));
-    for (const f of [banner.file, banner.fileSmall].filter(Boolean)) {
+    for (const f of [banner.file, banner.fileSmall, banner.filePhone].filter(Boolean)) {
       await fsp.unlink(path.join(UPLOAD_DIR, f)).catch(() => {});
     }
     return sendJson(res, 200, { ok: true });

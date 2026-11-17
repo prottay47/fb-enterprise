@@ -223,11 +223,21 @@ function initHeroSlider() {
   let timer = null;
   let paused = reduceMotion;
 
+  // Phones get the portrait "phone version" of a banner when it has one
+  const PHONE_MEDIA = '(max-width: 767px)';
+
   function render(list) {
     wrap.innerHTML = '';
     list.forEach((b, i) => {
+      const pic = document.createElement('picture');
+      pic.className = 'hero-slide' + (i === 0 ? ' is-active' : '');
+      if (b.srcPhone) {
+        const source = document.createElement('source');
+        source.media = PHONE_MEDIA;
+        source.srcset = b.srcPhone;
+        pic.appendChild(source);
+      }
       const img = document.createElement('img');
-      img.className = 'hero-slide' + (i === 0 ? ' is-active' : '');
       img.src = b.src;
       if (b.srcSmall) {
         img.srcset = `${b.srcSmall} 1000w, ${b.src} 2000w`;
@@ -237,8 +247,14 @@ function initHeroSlider() {
       img.decoding = 'async';
       if (i > 0) img.loading = 'lazy';
       img.style.objectPosition = `${b.focusX ?? 50}% ${b.focusY ?? 50}%`;
-      wrap.appendChild(img);
+      pic.appendChild(img);
+      wrap.appendChild(pic);
     });
+  }
+
+  function firstImageUrl(b) {
+    if (b.srcPhone && window.matchMedia(PHONE_MEDIA).matches) return { src: b.srcPhone };
+    return { src: b.src, srcset: b.srcSmall ? `${b.srcSmall} 1000w, ${b.src} 2000w` : '' };
   }
 
   function setup() {
@@ -270,7 +286,8 @@ function initHeroSlider() {
       d.setAttribute('aria-current', n === current ? 'true' : 'false'));
     // make sure the next slide is loading before it is needed
     const next = slides[(current + 1) % slides.length];
-    if (next) next.loading = 'eager';
+    const nextImg = next && next.querySelector('img');
+    if (nextImg) nextImg.loading = 'eager';
   }
 
   function restart() {
@@ -306,11 +323,12 @@ function initHeroSlider() {
       // Swap only once the first uploaded image has loaded, so the hero never flashes empty
       const first = data.banners[0];
       const pre = new Image();
-      if (first.srcSmall) {
-        pre.srcset = `${first.srcSmall} 1000w, ${first.src} 2000w`;
+      const firstUrl = firstImageUrl(first);
+      if (firstUrl.srcset) {
+        pre.srcset = firstUrl.srcset;
         pre.sizes = '100vw';
       }
-      pre.src = first.src;
+      pre.src = firstUrl.src;
       const swap = () => {
         clearInterval(timer);
         render(data.banners);
