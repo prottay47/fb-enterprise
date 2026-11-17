@@ -44,31 +44,41 @@
   async function boot() {
     try {
       const s = await api('/api/admin/session');
-      $('loginNotConfigured').hidden = s.configured;
-      $('loginBtn').disabled = !s.configured;
       if (s.loggedIn) {
         await loadBanners();
         show('app');
         route();
       } else {
         show('login');
-        if (s.configured) $('password').focus();
+        $('username').focus();
       }
     } catch (err) {
       screens.loading.textContent = 'The dashboard needs the site server. Start it with: node server.js';
     }
   }
 
+  // Show / hide the password
+  $('pwToggle').addEventListener('click', () => {
+    const input = $('password');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    $('pwToggle').setAttribute('aria-pressed', String(show));
+    $('pwToggle').setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    input.focus();
+  });
+
   $('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const user = $('username').value.trim();
     const pw = $('password').value;
     const err = $('loginError');
     err.textContent = '';
-    if (!pw) { err.textContent = 'Enter the dashboard password.'; $('password').focus(); return; }
+    if (!user) { err.textContent = 'Enter your username.'; $('username').focus(); return; }
+    if (!pw) { err.textContent = 'Enter your password.'; $('password').focus(); return; }
     $('loginBtn').disabled = true;
     $('loginBtn').textContent = 'Signing in…';
     try {
-      await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ password: pw }) });
+      await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ username: user, password: pw }) });
       $('password').value = '';
       await loadBanners();
       show('app');
@@ -85,7 +95,7 @@
   async function logout() {
     try { await api('/api/admin/logout', { method: 'POST', body: '{}' }); } catch { /* ignore */ }
     show('login');
-    $('password').focus();
+    $('username').focus();
   }
   $('logoutBtn').addEventListener('click', logout);
   $('logoutBtnTop').addEventListener('click', logout);

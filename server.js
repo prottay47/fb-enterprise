@@ -6,6 +6,7 @@
  *
  * Environment variables
  *   PORT            Port to listen on (default 3000)
+ *   ADMIN_USERNAME  Dashboard username (default: admin)
  *   ADMIN_PASSWORD  Dashboard password. The dashboard stays locked until set.
  *   DATA_DIR        Where uploaded banners are kept (default ./data).
  *                   Mount this as a persistent volume in production.
@@ -27,6 +28,7 @@ const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const BANNERS_FILE = path.join(DATA_DIR, 'banners.json');
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const PRODUCTS_SEED = path.join(ROOT, 'products.seed.json');
+const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 const MAX_BANNERS = 5;
@@ -386,6 +388,19 @@ function sessionCookie(req, token, maxAgeSec) {
   return `fb_admin=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSec}${isHttps(req) ? '; Secure' : ''}`;
 }
 
+function sameText(input, expected) {
+  const a = crypto.createHash('sha256').update(String(input || '')).digest();
+  const b = crypto.createHash('sha256').update(String(expected)).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+/** Username is not case-sensitive; password is. Both are always checked, so timing reveals nothing. */
+function credentialsMatch(username, password) {
+  const userOk = sameText(String(username || '').trim().toLowerCase(), ADMIN_USERNAME.toLowerCase());
+  const passOk = passwordMatches(password);
+  return userOk && passOk;
+}
+
 function passwordMatches(input) {
   if (!ADMIN_PASSWORD) return false;
   const a = crypto.createHash('sha256').update(String(input || '')).digest();
@@ -475,10 +490,10 @@ async function handleApi(req, res, pathname) {
   }
 
   if (pathname === '/api/admin/login' && method === 'POST') {
-    if (!ADMIN_PASSWORD) return sendJson(res, 503, { error: 'The dashboard password has not been set on the server.' });
+    if (!ADMIN_PASSWORD) return sendJson(res, 503, { error: 'Sign-in is not available right now. Please try again later.' });
     if (!loginAllowed(clientIp(req))) return sendJson(res, 429, { error: 'Too many attempts. Try again in 15 minutes.' });
     const body = await readJson(req);
-    if (!passwordMatches(body.password)) return sendJson(res, 401, { error: 'Incorrect password.' });
+    if (!credentialsMatch(body.username, body.password)) return sendJson(res, 401, { error: 'Incorrect username or password.' });
     const token = crypto.randomBytes(32).toString('hex');
     sessions.set(token, Date.now() + SESSION_TTL);
     loginAttempts.delete(clientIp(req));

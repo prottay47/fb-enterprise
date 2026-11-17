@@ -60,6 +60,20 @@ code { font-size: .9em; background: rgba(10, 26, 63, .06); padding: 1px 5px; bor
 .login-sub { color: var(--muted); margin: 6px 0 24px; }
 .login-card label { display: block; font-weight: 600; color: var(--ink); font-size: 14px; margin-bottom: 8px; }
 .login-card input { width: 100%; min-height: 46px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font: 16px var(--font); color: var(--ink); }
+.login-card #username { margin-bottom: 16px; }
+.pw-wrap { position: relative; margin-bottom: 18px; }
+.pw-wrap + .field-error { margin-top: -8px; }
+.pw-wrap input { padding-right: 52px; }
+.pw-toggle {
+  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  width: 44px; height: 40px; display: grid; place-items: center;
+  border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+}
+.pw-toggle:hover { color: var(--ink); background: #f1f4f9; }
+.pw-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pw-toggle .eye-closed { display: none; }
+.pw-toggle[aria-pressed="true"] .eye-open { display: none; }
+.pw-toggle[aria-pressed="true"] .eye-closed { display: block; }
 .login-card input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(31, 79, 214, .15); }
 .field-error { color: var(--red); font-size: 13.5px; min-height: 20px; margin: 6px 0 12px; }
 .login-back { display: inline-flex; align-items: center; min-height: 44px; margin-top: 10px; color: var(--muted); text-decoration: none; font-size: 14px; }
