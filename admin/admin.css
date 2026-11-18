@@ -500,3 +500,12 @@ code { font-size: .9em; background: rgba(10, 26, 63, .06); padding: 1px 5px; bor
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
 }
+
+/* ---------- Settings: contact details ---------- */
+.settings-head--gap { margin-top: 36px; }
+.ct-form { display: grid; gap: 22px; max-width: 620px; }
+.ct-list { display: grid; gap: 8px; margin: 8px 0; }
+.ct-list:empty { display: none; }
+.ct-add { justify-self: start; }
+.ct-actions { display: flex; align-items: center; gap: 12px; justify-content: flex-end; }
+.ct-form .pf-listset.has-error .ct-list input { border-color: var(--red); }

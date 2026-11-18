@@ -108,6 +108,80 @@ ${indent}</div>`;
 }
 
 /** Replaces each marked region of the page with freshly built HTML. */
+/* ---------- Contact details (address, phones, emails from the dashboard) ---------- */
+
+/** "01700000000" -> "+8801700000000"; keeps a leading + and digits only. */
+function telHref(phone) {
+  const raw = String(phone).trim();
+  const digits = raw.replace(/\D/g, '');
+  if (raw.startsWith('+')) return `tel:+${digits}`;
+  if (/^0\d{10}$/.test(digits)) return `tel:+880${digits.slice(1)}`;
+  return `tel:${digits}`;
+}
+
+const addressLines = (address) => String(address || '').split('\n').map((l) => l.trim()).filter(Boolean);
+
+/** The contact blocks beside the quotation form. Empty parts are left out. */
+function renderContactBlocks(c) {
+  const out = [];
+  const lines = addressLines(c.address);
+  if (lines.length) {
+    out.push(`          <div class="contact-block">
+            <div class="contact-icon">🏢</div>
+            <div>
+              <h5>Bangladesh Head Office</h5>
+              <p>
+                <strong>F B Group</strong><br />
+                ${lines.map(esc).join('<br />\n                ')}
+              </p>
+            </div>
+          </div>`);
+  }
+  if (c.phones.length) {
+    out.push(`          <div class="contact-block">
+            <div class="contact-icon">📞</div>
+            <div>
+              <h5>Phone</h5>
+              <p>
+                ${c.phones.map((p) => `📞 <a href="${esc(telHref(p))}"><strong>${esc(p)}</strong></a>`).join('<br />\n                ')}
+              </p>
+            </div>
+          </div>`);
+  }
+  const web = [`🌐 <a href="https://fbgroupbd.com"><strong>fbgroupbd.com</strong></a>`]
+    .concat(c.emails.map((e) => `✉ <a href="mailto:${esc(e)}">${esc(e)}</a>`));
+  out.push(`          <div class="contact-block">
+            <div class="contact-icon">✉</div>
+            <div>
+              <h5>${c.emails.length ? 'Email &amp; Web' : 'Website'}</h5>
+              <p>
+                ${web.join('<br />\n                ')}
+              </p>
+            </div>
+          </div>`);
+  return out.join('\n\n');
+}
+
+/** The "Get in touch" lines in the footer. Empty parts are left out. */
+function renderFooterContact(c) {
+  const lines = [];
+  const addr = addressLines(c.address);
+  if (addr.length) lines.push('<strong>Bangladesh Head Office</strong>');
+  lines.push('<strong>F B Group</strong>');
+  if (addr.length) lines.push(`📍 ${addr.map(esc).join(', ')}`);
+  c.phones.forEach((p) => lines.push(`📞 <a href="${esc(telHref(p))}">${esc(p)}</a>`));
+  c.emails.forEach((e) => lines.push(`✉ <a href="mailto:${esc(e)}">${esc(e)}</a>`));
+  return `          <p>\n            ${lines.join('<br />\n            ')}\n          </p>`;
+}
+
+/** Keep Google's business details (JSON-LD) in step with the first phone and email. */
+function updateStructuredContact(html, c) {
+  let out = html;
+  if (c.phones.length) out = out.replace(/"telephone": "[^"]*"/, `"telephone": ${JSON.stringify(telHref(c.phones[0]).slice(4))}`);
+  if (c.emails.length) out = out.replace(/"email": "[^"]*"/, `"email": ${JSON.stringify(c.emails[0])}`);
+  return out;
+}
+
 function renderPage(html, data) {
   const regions = {
     'PRODUCTS:stone': renderCards('stone', data.stone || []),
@@ -115,11 +189,16 @@ function renderPage(html, data) {
     'PRODUCT-OPTIONS': renderOptions(data),
     GALLERY: renderGallery(data.gallery || []),
   };
+  if (data.contact) {
+    regions.CONTACT = renderContactBlocks(data.contact);
+    regions['FOOTER-CONTACT'] = renderFooterContact(data.contact);
+  }
   let out = html;
   for (const [name, content] of Object.entries(regions)) {
     const re = new RegExp(`(<!-- ${name} -->)[\\s\\S]*?(\\n[ \\t]*<!-- /${name} -->)`);
     out = out.replace(re, (_, open, close) => `${open}\n${content}${close}`);
   }
+  if (data.contact) out = updateStructuredContact(out, data.contact);
   return keepUnitsLowercase(out);
 }
 

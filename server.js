@@ -32,6 +32,7 @@ const QUOTES_FILE = path.join(DATA_DIR, 'quotes.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
 const CONTENT_UPDATES_FILE = path.join(DATA_DIR, 'content-updates.json');
 const GALLERY_FILE = path.join(DATA_DIR, 'gallery.json');
+const CONTACT_FILE = path.join(DATA_DIR, 'contact.json');
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -44,7 +45,8 @@ const MAX_BODY = 14 * 1024 * 1024;          // JSON body with two base64 images
 const MAX_IMAGE = 8 * 1024 * 1024;          // decoded large image
 const MAX_IMAGE_SMALL = 3 * 1024 * 1024;    // decoded mobile image
 const MAX_IMAGE_PHONE = 4 * 1024 * 1024;    // decoded portrait phone version
-const MAX_GALLERY = 60;                      // photos + videos in Our Operations
+const MAX_CONTACT_ITEMS = 10;                // phone numbers / emails each
+const MAX_GALLERY = 60;                     // photos + videos in Our Operations
 const MAX_GALLERY_IMAGE = 5 * 1024 * 1024;   // decoded large gallery photo (already WebP)
 const MAX_GALLERY_TILE = 2 * 1024 * 1024;    // decoded gallery tile
 const MAX_VIDEO_UPLOAD = 500 * 1024 * 1024;  // original video before compression
@@ -214,7 +216,8 @@ async function serveHome(req, res) {
     readGallery(),
   ]);
   const ready = gallery.filter((g) => g.status === 'ready' && g.file).map(publicGalleryItem);
-  const body = Buffer.from(renderPage(html, { ...products, gallery: ready }), 'utf8');
+  const contact = await readContact();
+  const body = Buffer.from(renderPage(html, { ...products, gallery: ready, contact }), 'utf8');
   const etag = `W/"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 20)}"`;
   const headers = baseHeaders({
     'Content-Type': 'text/html; charset=utf-8',
@@ -263,6 +266,65 @@ function writeBanners(banners) {
     await fsp.rename(tmp, BANNERS_FILE);
   });
   return writeQueue;
+}
+
+/* ---------- Contact details (Settings → Contact details) ---------- */
+
+// Shown until the details are saved from the dashboard for the first time
+const DEFAULT_CONTACT = {
+  address: 'Plot-68, Level-08, Road-17, Block-E, Banani, Dhaka, Bangladesh',
+  phones: ['01700000000'],
+  emails: ['info@fbenterprise.online', 'fbholdingsltd@gmail.com'],
+};
+
+let contactWriteQueue = Promise.resolve();
+
+async function readContact() {
+  try {
+    const data = JSON.parse(await fsp.readFile(CONTACT_FILE, 'utf8'));
+    return {
+      address: typeof data.address === 'string' ? data.address : '',
+      phones: Array.isArray(data.phones) ? data.phones.filter((x) => typeof x === 'string') : [],
+      emails: Array.isArray(data.emails) ? data.emails.filter((x) => typeof x === 'string') : [],
+    };
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return { address: DEFAULT_CONTACT.address, phones: [...DEFAULT_CONTACT.phones], emails: [...DEFAULT_CONTACT.emails] };
+    }
+    throw err;
+  }
+}
+
+function writeContact(contact) {
+  contactWriteQueue = contactWriteQueue.then(async () => {
+    await fsp.mkdir(DATA_DIR, { recursive: true });
+    const tmp = CONTACT_FILE + '.tmp';
+    await fsp.writeFile(tmp, JSON.stringify(contact, null, 2));
+    await fsp.rename(tmp, CONTACT_FILE);
+  });
+  return contactWriteQueue;
+}
+
+/** Checks the dashboard form. Empty rows are dropped. Returns { contact } or { error, field }. */
+function readContactFields(body) {
+  const list = (v) => (Array.isArray(v) ? v : [])
+    .map((x) => String(x ?? '').trim().replace(/\s+/g, ' '))
+    .filter(Boolean);
+  const address = String(body.address ?? '').replace(/\r/g, '').split('\n')
+    .map((l) => l.trim()).filter(Boolean).join('\n');
+  if (address.length > 300) return { error: 'The address is too long. Keep it under 300 characters.', field: 'address' };
+
+  const phones = [...new Set(list(body.phones))];
+  if (phones.length > MAX_CONTACT_ITEMS) return { error: `You can add up to ${MAX_CONTACT_ITEMS} phone numbers.`, field: 'phones' };
+  const badPhone = phones.find((p) => !/^\+?[0-9][0-9 ()-]{4,24}$/.test(p));
+  if (badPhone) return { error: `"${badPhone.slice(0, 30)}" is not a phone number. Use digits, with + - ( ) or spaces if you like.`, field: 'phones' };
+
+  const emails = [...new Set(list(body.emails).map((e) => e.toLowerCase()))];
+  if (emails.length > MAX_CONTACT_ITEMS) return { error: `You can add up to ${MAX_CONTACT_ITEMS} email addresses.`, field: 'emails' };
+  const badEmail = emails.find((e) => e.length > 120 || !/^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(e));
+  if (badEmail) return { error: `"${badEmail.slice(0, 40)}" is not a valid email address.`, field: 'emails' };
+
+  return { contact: { address, phones, emails } };
 }
 
 /* ---------- Products ---------- */
@@ -1078,6 +1140,18 @@ async function handleApi(req, res, pathname) {
     const sorted = ids.map((id) => banners.find((b) => b.id === id));
     await writeBanners(sorted);
     return sendJson(res, 200, { banners: sorted.map(publicBanner) });
+  }
+
+  /* ---------- Contact details ---------- */
+  if (pathname === '/api/admin/contact' && method === 'GET') {
+    return sendJson(res, 200, { max: MAX_CONTACT_ITEMS, contact: await readContact() });
+  }
+
+  if (pathname === '/api/admin/contact' && method === 'PUT') {
+    const { contact, error, field } = readContactFields(await readJson(req));
+    if (error) return sendJson(res, 400, { error, field });
+    await writeContact(contact);
+    return sendJson(res, 200, { contact });
   }
 
   if (pathname === '/api/admin/stats' && method === 'GET') {

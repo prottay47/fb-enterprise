@@ -465,6 +465,7 @@
     $('view-quotes').hidden = view !== 'quotes';
     $('view-gallery').hidden = view !== 'gallery';
     if (view === 'gallery') loadGallery(); else stopGalleryPoll();
+    if (view === 'settings') loadContact();
     if (view === 'stone' || view === 'sand') openProducts(view);
     if (view === 'quotes') loadQuotes();
     else refreshQuoteBadge();
@@ -472,6 +473,121 @@
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', () => { if (!screens.app.hidden) route(); });
+
+  /* ================= Settings: contact details ================= */
+
+  const ct = { max: 10, dirty: false };
+  const CT_LISTS = {
+    phones: { box: 'ctPhones', add: 'ctAddPhone', field: 'ctPhonesField', type: 'tel', max: 30, placeholder: 'e.g. 01700000000', label: 'Phone number' },
+    emails: { box: 'ctEmails', add: 'ctAddEmail', field: 'ctEmailsField', type: 'email', max: 120, placeholder: 'e.g. info@fbgroupbd.com', label: 'Email address' },
+  };
+
+  const ctInputs = (key) => Array.from($(CT_LISTS[key].box).querySelectorAll('input'));
+
+  function ctUpdateAdd(key) {
+    const conf = CT_LISTS[key];
+    const full = ctInputs(key).length >= ct.max;
+    $(conf.add).hidden = full;
+  }
+
+  function ctAddRow(key, value = '', focus = false) {
+    const conf = CT_LISTS[key];
+    if (ctInputs(key).length >= ct.max) return;
+    const row = document.createElement('div');
+    row.className = 'pf-list-item';
+    const input = document.createElement('input');
+    input.type = conf.type;
+    input.maxLength = conf.max;
+    input.value = value;
+    input.placeholder = conf.placeholder;
+    input.autocomplete = 'off';
+    input.setAttribute('aria-label', `${conf.label} ${ctInputs(key).length + 1}`);
+    input.addEventListener('input', ctMarkDirty);
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'icon-btn';
+    del.setAttribute('aria-label', `Remove this ${conf.label.toLowerCase()}`);
+    del.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+    del.addEventListener('click', () => {
+      row.remove();
+      ctMarkDirty();
+      ctUpdateAdd(key);
+      $(conf.add).focus();
+    });
+    row.append(input, del);
+    $(conf.box).appendChild(row);
+    ctUpdateAdd(key);
+    if (focus) input.focus();
+  }
+
+  function ctMarkDirty() {
+    ct.dirty = true;
+    $('ctState').className = 'save-state';
+    $('ctState').textContent = 'Unsaved changes';
+  }
+
+  function ctClearErrors() {
+    $('ctError').textContent = '';
+    ['ctAddressField', 'ctPhonesField', 'ctEmailsField'].forEach((id) => $(id).classList.remove('has-error'));
+  }
+
+  function ctFill(contact) {
+    $('ctAddress').value = contact.address || '';
+    Object.keys(CT_LISTS).forEach((key) => {
+      $(CT_LISTS[key].box).innerHTML = '';
+      (contact[key] || []).forEach((v) => ctAddRow(key, v));
+      ctUpdateAdd(key);
+    });
+    ct.dirty = false;
+    ctClearErrors();
+  }
+
+  async function loadContact() {
+    if (ct.dirty) return; // keep unsaved edits when coming back to Settings
+    try {
+      const data = await api('/api/admin/contact');
+      ct.max = data.max;
+      ctFill(data.contact);
+      $('ctState').textContent = '';
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  $('ctAddPhone').addEventListener('click', () => { ctAddRow('phones', '', true); ctMarkDirty(); });
+  $('ctAddEmail').addEventListener('click', () => { ctAddRow('emails', '', true); ctMarkDirty(); });
+  $('ctAddress').addEventListener('input', ctMarkDirty);
+
+  $('contactForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    ctClearErrors();
+    const btn = $('ctSave');
+    btn.disabled = true;
+    $('ctState').className = 'save-state';
+    $('ctState').textContent = 'Saving…';
+    try {
+      const res = await api('/api/admin/contact', {
+        method: 'PUT',
+        body: JSON.stringify({
+          address: $('ctAddress').value,
+          phones: ctInputs('phones').map((i) => i.value),
+          emails: ctInputs('emails').map((i) => i.value),
+        }),
+      });
+      ctFill(res.contact);
+      $('ctState').className = 'save-state ok';
+      $('ctState').textContent = 'Saved';
+      toast('Contact details saved. The website shows them now.');
+    } catch (err) {
+      $('ctState').className = 'save-state err';
+      $('ctState').textContent = 'Not saved';
+      $('ctError').textContent = err.message;
+      const field = { address: 'ctAddressField', phones: 'ctPhonesField', emails: 'ctEmailsField' }[err.field];
+      if (field) $(field).classList.add('has-error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   /* ================= Gallery (Our Operations) ================= */
 

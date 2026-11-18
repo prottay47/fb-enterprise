@@ -163,7 +163,7 @@
       <div class="page-head">
         <div>
           <h1>Settings</h1>
-          <p>Manage the homepage's hero banners.</p>
+          <p>Manage the homepage's hero banners and contact details.</p>
         </div>
       </div>
 
@@ -198,6 +198,41 @@
           <span class="panel-note">Shown in this order. Changes go live as soon as they save.</span>
         </div>
         <ol class="banner-list" id="bannerList"></ol>
+      </section>
+
+      <!-- Contact details -->
+      <div class="settings-head settings-head--gap">
+        <div>
+          <h2>Contact details</h2>
+          <p>Shown in the Contact section and the footer of the website. Leave a part empty and it is hidden there.</p>
+        </div>
+      </div>
+      <section class="panel" aria-label="Contact details">
+        <form id="contactForm" class="ct-form" novalidate>
+          <div class="pf-field" id="ctAddressField">
+            <label for="ctAddress">Head office address</label>
+            <textarea id="ctAddress" rows="3" maxlength="300" placeholder="e.g. Plot-68, Level-08, Road-17, Block-E, Banani, Dhaka, Bangladesh"></textarea>
+            <span class="pf-hint">One address. Press Enter to start a new line.</span>
+          </div>
+
+          <fieldset class="pf-field pf-listset" id="ctPhonesField">
+            <legend>Phone numbers</legend>
+            <div class="ct-list" id="ctPhones"></div>
+            <button type="button" class="btn btn-ghost btn-sm ct-add" id="ctAddPhone">+ Add phone number</button>
+          </fieldset>
+
+          <fieldset class="pf-field pf-listset" id="ctEmailsField">
+            <legend>Email addresses</legend>
+            <div class="ct-list" id="ctEmails"></div>
+            <button type="button" class="btn btn-ghost btn-sm ct-add" id="ctAddEmail">+ Add email address</button>
+          </fieldset>
+
+          <p class="field-error" id="ctError" role="alert"></p>
+          <div class="ct-actions">
+            <span class="save-state" id="ctState" aria-live="polite"></span>
+            <button type="submit" class="btn btn-primary" id="ctSave">Save contact details</button>
+          </div>
+        </form>
       </section>
      </div>
 

@@ -2184,3 +2184,14 @@ body { text-transform: capitalize; }
 a[href^="mailto:"], a[href^="http"], a[href^="tel:"],
 input, textarea, select, option,
 .no-cap { text-transform: none; }
+
+/* Small light-blue diamond used instead of full stops in a heading */
+.head-sep {
+  display: inline-block;
+  width: 0.32em;
+  height: 0.32em;
+  margin: 0 0.3em 0 0.55em; /* the space after it makes up the right side */
+  vertical-align: middle;
+  background: var(--accent-light);
+  transform: rotate(45deg) translateY(-0.08em);
+}
