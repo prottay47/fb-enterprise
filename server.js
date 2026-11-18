@@ -30,7 +30,6 @@ const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const PRODUCTS_SEED = path.join(ROOT, 'products.seed.json');
 const QUOTES_FILE = path.join(DATA_DIR, 'quotes.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
-const MAX_QUOTES_KEPT = 2000;                // oldest are dropped beyond this
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
@@ -384,6 +383,49 @@ function readQuoteFields(body) {
   return { quote: q };
 }
 
+/* ---------- Storage check ----------
+ * The dashboard warns when saved data would not survive a redeploy:
+ * - "persistent": DATA_DIR (or a folder above it) is its own mount, i.e. a volume.
+ *   Only checked on Linux (the live server); elsewhere it is reported as unknown.
+ * - "writable": the server can actually save files there.
+ */
+const storage = { persistent: null, writable: null, checkedAt: null, error: '' };
+
+async function checkStorage() {
+  storage.checkedAt = new Date().toISOString();
+  try {
+    await fsp.mkdir(DATA_DIR, { recursive: true });
+    const probe = path.join(DATA_DIR, '.write-test');
+    await fsp.writeFile(probe, String(Date.now()));
+    await fsp.unlink(probe);
+    storage.writable = true;
+  } catch (err) {
+    storage.writable = false;
+    storage.error = err.code || err.message;
+  }
+  if (process.platform === 'linux') {
+    try {
+      const mounts = (await fsp.readFile('/proc/self/mountinfo', 'utf8'))
+        .split('\n').map((line) => line.split(' ')[4]).filter(Boolean);
+      let dir = path.resolve(DATA_DIR);
+      let found = false;
+      while (dir && dir !== '/') {
+        if (mounts.includes(dir)) { found = true; break; }
+        dir = path.dirname(dir);
+      }
+      storage.persistent = found;
+    } catch {
+      storage.persistent = null;
+    }
+  }
+  if (storage.persistent === false) {
+    console.warn(`WARNING: ${DATA_DIR} is not a persistent volume. Dashboard changes will be LOST on the next redeploy.`);
+  }
+  if (storage.writable === false) {
+    console.warn(`WARNING: cannot write to ${DATA_DIR} (${storage.error}). Dashboard changes cannot be saved.`);
+  }
+}
+
 /* ---------- Visitor statistics ----------
  * Privacy-friendly counting, kept on this server only: no cookies, no IP addresses stored.
  * A visitor is counted once per day using a hash of (daily random salt + IP + browser);
@@ -391,7 +433,6 @@ function readQuoteFields(body) {
  * Bots, prefetches and signed-in admins are not counted. Days follow Bangladesh time (UTC+6).
  */
 const BOT_UA = /bot|crawl|spider|slurp|preview|monitor|uptime|curl|wget|python|axios|node-fetch|go-http|java\/|headless|lighthouse|pagespeed|facebookexternalhit|whatsapp|telegram|discord|scanner|httpclient|okhttp/i;
-const STATS_KEEP_DAYS = 400;
 let stats = null;
 let statsDirty = false;
 
@@ -417,8 +458,6 @@ async function loadStats() {
 async function flushStats() {
   if (!stats || !statsDirty) return;
   statsDirty = false;
-  const keepFrom = dhakaDay(Date.now() - STATS_KEEP_DAYS * 86400000);
-  for (const day of Object.keys(stats.days)) if (day < keepFrom) delete stats.days[day];
   const out = { startedAt: stats.startedAt, days: stats.days, today: { ...stats.today, seen: [...stats.today.seen] } };
   try {
     await fsp.mkdir(DATA_DIR, { recursive: true });
@@ -713,7 +752,7 @@ async function handleApi(req, res, pathname) {
     if (error) return sendJson(res, 400, { error, field });
     const quotes = await readQuotes();
     quotes.unshift({ id: crypto.randomBytes(12).toString('hex'), ...quote, status: 'new', createdAt: new Date().toISOString() });
-    await writeQuotes(quotes.slice(0, MAX_QUOTES_KEPT));
+    await writeQuotes(quotes);
     return sendJson(res, 201, { ok: true });
   }
 
@@ -722,7 +761,12 @@ async function handleApi(req, res, pathname) {
   if (method !== 'GET' && !sameOrigin(req)) return sendJson(res, 403, { error: 'Forbidden' });
 
   if (pathname === '/api/admin/session' && method === 'GET') {
-    return sendJson(res, 200, { configured: Boolean(ADMIN_PASSWORD), loggedIn: isLoggedIn(req) });
+    const loggedIn = isLoggedIn(req);
+    return sendJson(res, 200, {
+      configured: Boolean(ADMIN_PASSWORD),
+      loggedIn,
+      storage: loggedIn ? { persistent: storage.persistent, writable: storage.writable, dir: DATA_DIR } : undefined,
+    });
   }
 
   if (pathname === '/api/admin/login' && method === 'POST') {
@@ -969,7 +1013,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-loadStats().finally(() => server.listen(PORT, () => {
+Promise.all([checkStorage(), loadStats()]).finally(() => server.listen(PORT, () => {
   console.log(`F B Group site running on http://localhost:${PORT}`);
   console.log(`Dashboard: http://localhost:${PORT}/admin/`);
   if (!ADMIN_PASSWORD) console.warn('ADMIN_PASSWORD is not set: the dashboard is locked.');

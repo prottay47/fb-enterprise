@@ -324,6 +324,15 @@ code { font-size: .9em; background: rgba(10, 26, 63, .06); padding: 1px 5px; bor
 .quote-actions .delete-btn { margin-left: auto; }
 .quote-empty { text-align: center; padding: 28px 0; margin: 0; }
 
+/* ---------- Storage warning ---------- */
+.storage-alert {
+  margin-bottom: 20px; padding: 16px 18px; border-radius: var(--radius);
+  background: #fdecea; border: 1px solid #f3b8b2; color: #8c1d18;
+}
+.storage-alert strong { display: block; font-size: 15px; margin-bottom: 4px; }
+.storage-alert p { font-size: 14px; line-height: 1.55; }
+.storage-alert code { background: rgba(140, 29, 24, .08); }
+
 /* ---------- Settings ---------- */
 .settings-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin: 8px 0 16px; padding-top: 8px; }
 .settings-head h2 { font: 700 21px/1.25 var(--serif); }

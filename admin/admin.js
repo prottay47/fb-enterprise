@@ -41,10 +41,29 @@
 
   /* ---------------- auth ---------------- */
 
+  /** Red warning at the top of every page if saved data would not survive a redeploy. */
+  function showStorageWarning(st) {
+    const box = $('storageAlert');
+    if (!st) { box.hidden = true; return; }
+    if (st.writable === false) {
+      $('storageAlertTitle').textContent = 'The website cannot save changes';
+      $('storageAlertText').innerHTML = 'The server is not allowed to write to its data folder (<code></code>). In Coolify, use <b>Persistent Storage → Volume Mount</b> (not a directory mount) with destination <code>/app/data</code>, then redeploy.';
+    } else if (st.persistent === false) {
+      $('storageAlertTitle').textContent = 'Changes will be lost on the next redeploy';
+      $('storageAlertText').innerHTML = 'Products, banners, quotation requests and statistics are saved in <code></code>, but that folder is not permanent storage. In Coolify open this app → <b>Persistent Storage</b> → <b>+ Add</b> → <b>Volume Mount</b>, destination <code>/app/data</code>, then redeploy. Until then, avoid adding content.';
+    } else {
+      box.hidden = true;
+      return;
+    }
+    box.querySelector('code').textContent = st.dir;
+    box.hidden = false;
+  }
+
   async function boot() {
     try {
       const s = await api('/api/admin/session');
       if (s.loggedIn) {
+        showStorageWarning(s.storage);
         await loadBanners();
         show('app');
         route();
@@ -79,6 +98,7 @@
     $('loginBtn').textContent = 'Signing in…';
     try {
       await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ username: user, password: pw }) });
+      api('/api/admin/session').then((s) => showStorageWarning(s.storage)).catch(() => {});
       $('password').value = '';
       await loadBanners();
       show('app');

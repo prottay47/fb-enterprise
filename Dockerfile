@@ -9,10 +9,12 @@ ENV NODE_ENV=production \
     PORT=3000 \
     DATA_DIR=/app/data
 
-# Uploaded banners live here. Mount a persistent volume on /app/data
-# so they survive redeploys. Set ADMIN_PASSWORD in the hosting panel.
+# Everything saved from the dashboard (products, banners, uploads, quotation
+# requests, statistics) lives in /app/data. In Coolify, add Persistent Storage →
+# Volume Mount with destination /app/data, or it is lost on every redeploy.
+# (No VOLUME line here on purpose: it would silently create a new, empty,
+# unnamed volume for each new container.)
 RUN mkdir -p /app/data && chown -R node:node /app/data
-VOLUME ["/app/data"]
 
 USER node
 EXPOSE 3000
