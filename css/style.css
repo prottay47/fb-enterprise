@@ -1042,135 +1042,67 @@ section {
 }
 
 .yards-grid {
+  list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 26px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  max-width: 960px;
+  margin-inline: auto;
 }
 
 .yard-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 28px 30px;
   background: var(--paper);
   border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
   border-radius: 8px;
-  overflow: hidden;
   transition: var(--transition);
-  position: relative;
 }
 
 .yard-card:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--accent);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+  border-color: var(--accent-light);
 }
 
-.yard-img {
-  aspect-ratio: 16/10;
-  background-color: var(--bg-alt);
-  position: relative;
-  overflow: hidden;
+.yard-pin {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: #1f6fb8;
 }
 
-.yard-photo {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.yard-pin svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.yard-img::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 40%, rgba(10, 26, 63, 0.78));
-}
-
-.yard-meta {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 18px 22px;
-  color: #fff;
-  z-index: 2;
-}
-
-.yard-meta h4 {
-  color: #fff;
+.yard-card h3 {
   font-size: 1.35rem;
-  margin-bottom: 4px;
+  line-height: 1.25;
+  color: var(--accent);
+  margin-bottom: 6px;
 }
 
-.yard-meta .loc {
+.yard-card .loc {
+  margin: 0;
   font-size: 0.82rem;
-  color: var(--accent-light);
+  font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
-}
-
-.yard-cap {
-  padding: 18px 22px;
-  background: var(--bg);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 3px solid var(--accent);
-}
-
-.yard-cap .label {
-  font-size: 0.78rem;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.yard-cap .val {
-  font-family: var(--font-serif);
-  font-size: 1.5rem;
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.yards-summary {
-  margin-top: 50px;
-  padding: 30px 40px;
-  background: var(--ink);
-  color: #fff;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 18px;
-}
-
-.yards-summary div h4 {
-  color: #fff;
-  font-size: 1.4rem;
-  margin-bottom: 4px;
-}
-
-.yards-summary div p {
-  color: #b8c3d6;
-  font-size: 0.92rem;
-  margin: 0;
-}
-
-.yards-summary .total {
-  text-align: right;
-}
-
-.yards-summary .total .num {
-  font-family: var(--font-serif);
-  font-size: 2.4rem;
-  color: var(--accent-light);
-  line-height: 1;
-}
-
-.yards-summary .total .label {
-  font-size: 0.78rem;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: #b8c3d6;
+  color: #1f6fb8;
 }
 
 /* ---------- STRENGTH & FLEET SECTION ---------- */
@@ -1770,15 +1702,6 @@ footer {
     padding: 28px 20px;
   }
   
-  .yards-summary {
-    flex-direction: column;
-    text-align: center;
-    padding: 26px 24px;
-  }
-  
-  .yards-summary .total {
-    text-align: center;
-  }
   
   .choose-card {
     padding: 38px 26px;
