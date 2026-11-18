@@ -129,6 +129,9 @@ header {
   display: flex;
   align-items: center;
   gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .logo-mark {
@@ -1930,3 +1933,254 @@ footer {
 @media (max-width: 768px) {
   .hero-stats { margin-bottom: 48px; }
 }
+
+/* ---------- LEADERSHIP ---------- */
+.leadership { background: var(--bg); }
+
+.leader-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.leader-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 200px;
+  padding: 36px 32px 32px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(10, 26, 63, 0.04);
+  overflow: hidden;
+  transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.leader-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-light));
+}
+
+.leader-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 168, 240, 0.55);
+  box-shadow: var(--shadow);
+}
+
+.leader-name {
+  flex: 1;
+  font-size: clamp(1.45rem, 2.1vw, 1.75rem);
+  line-height: 1.25;
+  color: var(--accent);
+  overflow-wrap: break-word;
+}
+
+.leader-role {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  line-height: 1.5;
+  color: #1f6fb8;
+  overflow-wrap: break-word;
+}
+
+/* Share one name row and one designation row across cards, so dividers line up */
+@supports (grid-template-rows: subgrid) {
+  .leader-card {
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    row-gap: 20px;
+    align-content: start;
+  }
+  .leader-name { align-self: start; }
+}
+
+@media (max-width: 640px) {
+  .leader-grid { grid-template-columns: 1fr; gap: 16px; }
+  .leader-card { min-height: 0; padding: 28px 24px; }
+  .leader-name { font-size: 1.4rem; }
+  .leader-role { font-size: 0.78rem; letter-spacing: 1px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .leader-card { transition: none; }
+  .leader-card:hover { transform: none; }
+}
+
+/* ---------- HERO SLOGAN (scrolling ticker) ---------- */
+.hero-slogan {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  /* the long moving line must not widen the hero */
+  contain: inline-size;
+  margin: -12px 0 34px;
+  padding: 10px 0;
+  overflow: hidden;
+  border-top: 1px solid rgba(56, 168, 240, 0.35);
+  border-bottom: 1px solid rgba(56, 168, 240, 0.35);
+  /* fade the text in and out at both edges */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+
+.slogan-track {
+  display: flex;
+  width: max-content;
+  animation: slogan-scroll 22s linear infinite;
+}
+.hero-slogan:hover .slogan-track { animation-play-state: paused; }
+
+.slogan-group { display: flex; flex-shrink: 0; }
+
+.slogan-item {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-family: var(--font-serif);
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+  font-style: italic;
+  color: #fff;
+}
+/* small diamond between repeats */
+.slogan-item::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  margin: 0 28px;
+  background: var(--accent-light);
+  transform: rotate(45deg);
+}
+
+/* the track holds two identical groups, so moving it by half loops seamlessly */
+@keyframes slogan-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@media (max-width: 768px) {
+  .hero-slogan { margin: -10px 0 28px; padding: 8px 0; }
+  .slogan-item { font-size: 1.05rem; }
+  .slogan-item::after { margin: 0 20px; width: 6px; height: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slogan-track { animation: none; }
+}
+
+/* ---------- HERO STATS: spinning digits ---------- */
+.hero-stat .num .reel {
+  display: inline-block;
+  height: 1.2em;
+  overflow: hidden;
+  vertical-align: bottom;
+  margin-top: -0.2em; /* keep the row the same height as plain text */
+}
+.hero-stat .num .reel-strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform 1.8s cubic-bezier(0.15, 0.7, 0.2, 1);
+  will-change: transform;
+}
+.hero-stat .num .reel-strip > span {
+  display: block;
+  height: 1.2em;
+  line-height: 1.2em;
+  text-align: center;
+}
+
+/* ---------- OUR GROUP: scroll-in animation ----------
+   main.js adds .anim-ready (only when it can animate), then .in-view once each part scrolls in. */
+.group { overflow-x: clip; }
+
+.group-tree.anim-ready:not(.in-view) .group-parent,
+.group-card.anim-ready:not(.in-view) { opacity: 0; }
+
+/* F B Group pill drops in, then the branch lines draw down to the two companies */
+.group-tree.in-view .group-parent { animation: grp-drop 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+.group-tree.anim-ready .group-lines path { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.group-tree.in-view .group-lines path { animation: grp-draw 0.9s ease 0.45s forwards; }
+
+/* Cards slide in from their own side: 01 from the left, 02 from the right */
+.group-card.in-view { animation: grp-from-left 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+.group-card.in-view:nth-child(2) { animation-name: grp-from-right; animation-delay: 0.15s; }
+
+/* Photo settles from a slight zoom, the logo pops, then the text and tags rise in */
+.group-card.in-view .group-photo img { animation: grp-photo 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+.group-card.in-view .group-logo { animation: grp-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s backwards; }
+.group-card.in-view .group-id > div,
+.group-card.in-view .group-lines-text { animation: grp-rise 0.6s ease 0.6s backwards; }
+.group-card.in-view .group-tags li { animation: grp-rise 0.5s ease backwards; }
+.group-card.in-view .group-tags li:nth-child(1) { animation-delay: 0.8s; }
+.group-card.in-view .group-tags li:nth-child(2) { animation-delay: 0.9s; }
+.group-card.in-view .group-tags li:nth-child(3) { animation-delay: 1s; }
+.group-card.in-view:nth-child(2) .group-photo img { animation-delay: 0.15s; }
+.group-card.in-view:nth-child(2) .group-logo { animation-delay: 0.6s; }
+.group-card.in-view:nth-child(2) .group-id > div,
+.group-card.in-view:nth-child(2) .group-lines-text { animation-delay: 0.75s; }
+.group-card.in-view:nth-child(2) .group-tags li:nth-child(1) { animation-delay: 0.95s; }
+.group-card.in-view:nth-child(2) .group-tags li:nth-child(2) { animation-delay: 1.05s; }
+.group-card.in-view:nth-child(2) .group-tags li:nth-child(3) { animation-delay: 1.15s; }
+
+@keyframes grp-drop { from { opacity: 0; transform: translateY(-16px) scale(0.92); } to { opacity: 1; transform: none; } }
+@keyframes grp-draw { to { stroke-dashoffset: 0; } }
+@keyframes grp-from-left { from { opacity: 0; transform: translateX(-60px); } to { opacity: 1; transform: none; } }
+@keyframes grp-from-right { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: none; } }
+@keyframes grp-photo { from { transform: scale(1.15); } to { transform: scale(1); } }
+@keyframes grp-pop { from { opacity: 0; transform: scale(0.6) rotate(-6deg); } to { opacity: 1; transform: none; } }
+@keyframes grp-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 900px) {
+  /* stacked cards: each one animates on its own as it scrolls in */
+  .group-card.in-view:nth-child(2) { animation-delay: 0s; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group-tree.anim-ready .group-parent, .group-card.anim-ready { opacity: 1; }
+  .group-tree .group-lines path { stroke-dasharray: none; stroke-dashoffset: 0; }
+  .group-tree *, .group-card, .group-card * { animation: none !important; }
+}
+
+/* ---------- SCROLL REVEAL (rest of the page) ----------
+   main.js adds .rv + an effect class to elements below the fold, then .rv-in once they scroll into view.
+   "backwards" fill keeps each element's own hover effects working after it has appeared. */
+.rv:not(.rv-in) { opacity: 0; }
+.rv.rv-in {
+  animation: rv-up 0.75s cubic-bezier(0.2, 0.7, 0.2, 1) var(--rv-delay, 0ms) backwards;
+}
+.rv-left.rv-in  { animation-name: rv-left; }
+.rv-right.rv-in { animation-name: rv-right; }
+.rv-zoom.rv-in  { animation-name: rv-zoom; animation-duration: 0.85s; }
+
+@keyframes rv-up    { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: none; } }
+@keyframes rv-left  { from { opacity: 0; transform: translateX(-48px); } to { opacity: 1; transform: none; } }
+@keyframes rv-right { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
+@keyframes rv-zoom  { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+
+/* keep sideways slides from causing a horizontal scrollbar */
+.about, .contact, .products, .gallery, .choose, .yards, .why, .route, .leadership { overflow-x: clip; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rv:not(.rv-in) { opacity: 1; }
+  .rv.rv-in { animation: none; }
+}
+
+/* ---------- CAPITALISE EVERY WORD ----------
+   Every word on the page starts with a capital letter.
+   Left as typed: email addresses, web links, and anything a visitor types into the form. */
+body { text-transform: capitalize; }
+a[href^="mailto:"], a[href^="http"], a[href^="tel:"],
+input, textarea, select, option,
+.no-cap { text-transform: none; }

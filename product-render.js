@@ -120,7 +120,35 @@ function renderPage(html, data) {
     const re = new RegExp(`(<!-- ${name} -->)[\\s\\S]*?(\\n[ \\t]*<!-- /${name} -->)`);
     out = out.replace(re, (_, open, close) => `${open}\n${content}${close}`);
   }
-  return out;
+  return keepUnitsLowercase(out);
+}
+
+/**
+ * The page capitalises every word (CSS text-transform), which would turn
+ * "10 mm" into "10 Mm". Wrap measurement units that follow a number in
+ * <span class="no-cap"> so they keep their own case. Only visible text in
+ * <body> is touched; tags, attributes and form option text are left alone.
+ */
+const SKIP_TAGS = new Set(['script', 'style', 'textarea', 'select', 'option', 'title']);
+const UNIT_RE = /(\d)(\s?)(mm|cm|km|kg)\b/gi;
+function keepUnitsLowercase(html) {
+  const start = html.search(/<body[\s>]/i);
+  if (start < 0) return html;
+  let skip = null;
+  const body = html.slice(start).split(/(<[^>]*>)/).map((part) => {
+    if (part.startsWith('<')) {
+      const m = /^<(\/?)([a-zA-Z][\w-]*)/.exec(part);
+      if (m) {
+        const name = m[2].toLowerCase();
+        if (!m[1] && !skip && SKIP_TAGS.has(name) && !part.endsWith('/>')) skip = name;
+        else if (m[1] && skip === name) skip = null;
+      }
+      return part;
+    }
+    if (skip || !part) return part;
+    return part.replace(UNIT_RE, (_, d, sp, unit) => `${d}${sp}<span class="no-cap">${unit}</span>`);
+  });
+  return html.slice(0, start) + body.join('');
 }
 
 module.exports = { PRODUCT_TYPES, renderPage };

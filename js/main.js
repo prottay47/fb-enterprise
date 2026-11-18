@@ -7,6 +7,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // Hero banner slider (banners come from the dashboard at /admin)
   initHeroSlider();
   initLazyMedia();
+  initStatSpin();
+  initGroupReveal();
+  initScrollReveal();
+
+  // Header logo: smooth scroll back to the top of the page
+  const logoTop = document.getElementById('logoTop');
+  if (logoTop) {
+    logoTop.addEventListener('click', (e) => {
+      e.preventDefault();
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+      if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+      // close the phone menu if it is open
+      const list = document.getElementById('navlist');
+      const toggle = document.getElementById('menuToggle');
+      if (list && list.classList.contains('open') && toggle) toggle.click();
+    });
+  }
 
   // 1. Dynamic Copyright Year
   const yearElement = document.getElementById('year');
@@ -409,4 +427,154 @@ function loadSwal() {
     });
   }
   return swalPromise;
+}
+
+/**
+ * Hero stats: each digit spins like a slot-machine reel and settles on its value.
+ * Runs once per page load, when the stats first scroll into view.
+ */
+function initStatSpin() {
+  const box = document.querySelector('.hero-stats');
+  if (!box) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // wait for the web fonts, so digit widths are measured in the final font
+  const ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  ready.then(() => buildStatSpin(box));
+}
+
+function buildStatSpin(box) {
+  const LOOPS = 2; // full 0-9 turns before landing
+  const nums = Array.from(box.querySelectorAll('.num'));
+  const reels = [];
+
+  nums.forEach((el) => {
+    const text = el.textContent.trim();
+    el.setAttribute('aria-label', text);
+    el.textContent = '';
+    Array.from(text).forEach((ch) => {
+      if (!/[0-9]/.test(ch)) {
+        const s = document.createElement('span');
+        s.setAttribute('aria-hidden', 'true');
+        s.textContent = ch;
+        el.appendChild(s);
+        return;
+      }
+      const reel = document.createElement('span');
+      reel.className = 'reel';
+      reel.setAttribute('aria-hidden', 'true');
+      const strip = document.createElement('span');
+      strip.className = 'reel-strip';
+      for (let i = 0; i < (LOOPS + 1) * 10; i += 1) {
+        const d = document.createElement('span');
+        d.textContent = String(i % 10);
+        strip.appendChild(d);
+      }
+      reel.appendChild(strip);
+      // size the reel to its final digit, so spacing matches the plain number
+      const probe = document.createElement('span');
+      probe.textContent = ch;
+      el.appendChild(probe);
+      reel.style.width = `${probe.getBoundingClientRect().width}px`;
+      el.replaceChild(reel, probe);
+      reels.push({ strip, target: LOOPS * 10 + Number(ch) });
+    });
+  });
+
+  const spin = () => {
+    reels.forEach((r, i) => {
+      r.strip.style.transitionDelay = `${(i % 6) * 90}ms`;
+      r.strip.style.transform = `translateY(-${r.target * 1.2}em)`;
+    });
+  };
+
+  if (!('IntersectionObserver' in window)) { spin(); return; }
+  const io = new IntersectionObserver((entries, obs) => {
+    if (entries.some((e) => e.isIntersecting)) {
+      obs.disconnect();
+      void box.offsetHeight; // make sure the starting position is painted first
+      spin();
+    }
+  }, { threshold: 0.35 });
+  io.observe(box);
+}
+
+/**
+ * Our Group Companies: the tree and each company card animate in once,
+ * the first time they scroll into view.
+ */
+function initGroupReveal() {
+  const parts = Array.from(document.querySelectorAll('.group-tree, .group-card'));
+  if (!parts.length || !('IntersectionObserver' in window)) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const io = new IntersectionObserver((entries, obs) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      e.target.classList.add('in-view');
+      obs.unobserve(e.target);
+    });
+  }, { threshold: 0.2, rootMargin: '0px 0px -40px 0px' });
+
+  parts.forEach((el) => {
+    // already on screen when the page opens: just show it, no hidden flash
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight && r.bottom > 0) return;
+    el.classList.add('anim-ready');
+    io.observe(el);
+  });
+}
+
+/**
+ * Scroll reveal for the rest of the page. Each matched element fades in with a
+ * small movement the first time it scrolls into view; items in the same
+ * row or grid follow one after another. Runs once per page load.
+ */
+function initScrollReveal() {
+  if (!('IntersectionObserver' in window)) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  // [selector, effect] - effects: up, left, right, zoom
+  const RULES = [
+    ['.section-head', 'up'],
+    ['.why-subhead', 'up'],
+    ['.leader-card', 'up'],
+    ['.about-img', 'left'],
+    ['.about-content > .eyebrow, .about-content > h2, .about-content > p', 'right'],
+    ['.about-feat', 'up'],
+    ['.product-card', 'up'],
+    ['.gallery-item', 'zoom'],
+    ['.route-map', 'zoom'],
+    ['.choose-card', 'up'],
+    ['.yard-card', 'up'],
+    ['.cap-item', 'up'],
+    ['.cta-band .container', 'zoom'],
+    ['.contact-info', 'left'],
+    ['.contact-form', 'right'],
+    ['.foot-grid > *', 'up'],
+  ];
+
+  const io = new IntersectionObserver((entries, obs) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      e.target.classList.add('rv-in');
+      obs.unobserve(e.target);
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+  const seen = new Set();
+  RULES.forEach(([selector, effect]) => {
+    document.querySelectorAll(selector).forEach((el) => {
+      if (seen.has(el) || el.closest('.group, .hero')) return;
+      seen.add(el);
+      // already on screen when the page opens: leave it as it is
+      const r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight && r.bottom > 0) return;
+      // stagger items that share a parent (cards in a grid, lines in a block)
+      const siblings = Array.from(el.parentElement.children).filter((c) => c.matches(selector));
+      const i = Math.min(siblings.indexOf(el), 5);
+      el.style.setProperty('--rv-delay', `${i * 90}ms`);
+      el.classList.add('rv', `rv-${effect}`);
+      io.observe(el);
+    });
+  });
 }
