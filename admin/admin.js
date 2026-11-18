@@ -535,7 +535,8 @@
       node.dataset.id = p.id;
       if (prod.editing === p.id) node.classList.add('is-editing');
       const img = node.querySelector('.prod-thumb');
-      img.src = p.image;
+      if (p.image) img.src = p.image;
+      else { img.classList.add('no-photo'); img.alt = 'No photo yet'; img.removeAttribute('src'); }
       node.querySelector('.prod-name').textContent = p.name;
       node.querySelector('.prod-desc').textContent = p.description;
       const specs = node.querySelector('.prod-specs');
@@ -728,7 +729,6 @@
     // Check in the browser first, so mistakes show at once
     if (!body.name) return showError('name', 'Please enter a product name.');
     if (!body.description) return showError('description', 'Please enter a short description.');
-    if (!prod.editing && !body.image) return showError('image', 'Please add an image for this product.');
 
     const btn = $('prodSave');
     const label = btn.textContent;

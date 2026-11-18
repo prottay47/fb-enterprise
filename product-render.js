@@ -56,10 +56,16 @@ function renderCards(type, products, indent = '        ') {
       ? `\n${indent}    <ul class="product-spec">\n${rows.map((r) => `${indent}      ${r}`).join('\n')}\n${indent}    </ul>`
       : '';
     const badge = p.label ? `<span class="product-tag">${esc(p.label)}</span>` : '';
+    const src = imgUrl(p.image || '');
+    const photo = src
+      ? `<div class="product-img">
+${indent}    <img src="${esc(src)}" alt="${esc(p.name)}" width="800" height="500" loading="lazy" decoding="async" />${badge}
+${indent}  </div>`
+      : `<div class="product-img product-img--empty">
+${indent}    <span class="product-noimg" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17 8 9l4 3 3-6 5 11Z"/><path d="M3 20h18"/></svg>Photo coming soon</span>${badge}
+${indent}  </div>`;
     return `${indent}<div class="product-card">
-${indent}  <div class="product-img">
-${indent}    <img src="${esc(imgUrl(p.image))}" alt="${esc(p.name)}" width="800" height="500" loading="lazy" decoding="async" />${badge}
-${indent}  </div>
+${indent}  ${photo}
 ${indent}  <div class="product-body">
 ${indent}    <h3>${esc(p.name)}</h3>
 ${indent}    <p>${esc(p.description)}</p>${specs}

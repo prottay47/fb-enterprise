@@ -30,6 +30,7 @@ const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const PRODUCTS_SEED = path.join(ROOT, 'products.seed.json');
 const QUOTES_FILE = path.join(DATA_DIR, 'quotes.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
+const CONTENT_UPDATES_FILE = path.join(DATA_DIR, 'content-updates.json');
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
@@ -381,6 +382,57 @@ function readQuoteFields(body) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q.email)) return { error: 'Please enter a valid email address.', field: 'email' };
   if (!q.product) return { error: 'Please choose a product.', field: 'product' };
   return { quote: q };
+}
+
+/* ---------- One-time content updates ----------
+ * Each update runs once, ever: its id is recorded in content-updates.json.
+ * So anything it adds can be edited or deleted in the dashboard and will not come back.
+ */
+const SIZES_3 = ['5–10 mm', '10–20 mm', '20–40 mm'];
+const CONTENT_UPDATES = [
+  {
+    id: '2026-11-18-stone-lineup-and-sand-fm',
+    apply(data) {
+      const add = [
+        ['stone-uae-lime', 'UAE Lime Stone', 'Clean, durable limestone aggregate from the UAE for concrete, road base and general construction.', 'UAE'],
+        ['stone-dubai-gabbro', 'Dubai Gabbro Stone', 'Hard, dense gabbro with high crushing strength, ideal for RCC, high-grade concrete and heavy-load works.', 'Dubai, UAE'],
+        ['stone-oman-lime', 'Oman Lime Stone', 'Quality Omani limestone with consistent grading for concrete, block-making and road works.', 'Oman'],
+        ['stone-india-pakur', 'Indian Pakur Stone', 'Strong black stone from Pakur, widely used for RCC, bridges and high-strength concrete.', 'Pakur, India'],
+        ['stone-india-gujrat', 'Indian Gujrat Stone', 'Hard crushed stone from Gujarat for concrete, road construction and general building works.', 'Gujarat, India'],
+        ['stone-china-lime', 'Chinese Lime Stone', 'Imported Chinese limestone aggregate with uniform sizing for concrete and road base.', 'China'],
+        ['stone-bhutan-tosha', 'Bhutan Tosha Stone', 'Popular Bhutanese stone, washed and graded, for RCC, concrete and structural works.', 'Bhutan'],
+        ['stone-india-black-lc', 'Indian Black LC Stone', 'Hard black stone chips from India, well graded for RCC and concrete works.', 'India'],
+      ];
+      const have = new Set(data.stone.map((x) => x.name.trim().toLowerCase()));
+      const fresh = add
+        .filter(([, name]) => !have.has(name.toLowerCase()))
+        .map(([id, name, description, origin]) => ({
+          id, name, label: '', description, sizes: [...SIZES_3], use: '', origin, shape: '', image: '',
+        }));
+      data.stone = [...fresh, ...data.stone];
+      for (const sand of data.sand) sand.fm = [...SIZES_3];
+      return `added ${fresh.length} stone products, set FM on ${data.sand.length} sand products`;
+    },
+  },
+];
+
+async function applyContentUpdates() {
+  if (storage.writable === false) return;
+  let applied = [];
+  try {
+    applied = JSON.parse(await fsp.readFile(CONTENT_UPDATES_FILE, 'utf8')).applied || [];
+  } catch (err) {
+    if (err.code !== 'ENOENT') { console.error('Could not read content updates:', err.message); return; }
+  }
+  for (const update of CONTENT_UPDATES) {
+    if (applied.some((a) => a.id === update.id)) continue;
+    const data = await readProducts();
+    const result = update.apply(data);
+    await writeProducts(data);
+    applied.push({ id: update.id, appliedAt: new Date().toISOString(), result });
+    await fsp.writeFile(CONTENT_UPDATES_FILE, JSON.stringify({ applied }, null, 2));
+    console.log(`Content update ${update.id}: ${result}`);
+  }
 }
 
 /* ---------- Storage check ----------
@@ -882,8 +934,11 @@ async function handleApi(req, res, pathname) {
     if (data[type].length >= MAX_PRODUCTS) return sendJson(res, 400, { error: `You can have up to ${MAX_PRODUCTS} products here.` });
     const { product, error, field } = readProductFields(type, body);
     if (error) return sendJson(res, 400, { error, field });
-    const image = await saveProductImage(body.image);
-    if (!image) return sendJson(res, 400, { error: 'Please add a JPG, PNG or WebP image under 4 MB.', field: 'image' });
+    let image = '';
+    if (body.image) {
+      image = await saveProductImage(body.image);
+      if (!image) return sendJson(res, 400, { error: 'Please add a JPG, PNG or WebP image under 4 MB.', field: 'image' });
+    }
     const saved = { id: crypto.randomBytes(12).toString('hex'), ...product, image };
     data[type].push(saved);
     await writeProducts(data);
@@ -1013,7 +1068,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-Promise.all([checkStorage(), loadStats()]).finally(() => server.listen(PORT, () => {
+Promise.all([checkStorage(), loadStats()])
+  .then(() => applyContentUpdates())
+  .catch((err) => console.error('Startup step failed:', err))
+  .finally(() => server.listen(PORT, () => {
   console.log(`F B Group site running on http://localhost:${PORT}`);
   console.log(`Dashboard: http://localhost:${PORT}/admin/`);
   if (!ADMIN_PASSWORD) console.warn('ADMIN_PASSWORD is not set: the dashboard is locked.');

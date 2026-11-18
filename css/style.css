@@ -578,6 +578,36 @@ section {
   overflow: hidden;
 }
 
+.product-img--empty {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #eef3f9 0%, #dfe8f3 100%);
+}
+
+.product-img--empty::after {
+  display: none;
+}
+
+.product-noimg {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #7a869c;
+}
+
+.product-noimg svg {
+  width: 40px;
+  height: 40px;
+  fill: none;
+  stroke: #9fb0c8;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
 .product-img img {
   position: absolute;
   inset: 0;
