@@ -448,7 +448,7 @@
 
   /* ================= Pages ================= */
 
-  const VIEWS = ['overview', 'stone', 'sand', 'quotes', 'settings'];
+  const VIEWS = ['overview', 'stone', 'sand', 'gallery', 'quotes', 'settings'];
 
   function route() {
     let view = (location.hash || '#overview').slice(1);
@@ -463,6 +463,8 @@
     $('view-settings').hidden = view !== 'settings';
     $('view-products').hidden = view !== 'stone' && view !== 'sand';
     $('view-quotes').hidden = view !== 'quotes';
+    $('view-gallery').hidden = view !== 'gallery';
+    if (view === 'gallery') loadGallery(); else stopGalleryPoll();
     if (view === 'stone' || view === 'sand') openProducts(view);
     if (view === 'quotes') loadQuotes();
     else refreshQuoteBadge();
@@ -470,6 +472,281 @@
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', () => { if (!screens.app.hidden) route(); });
+
+  /* ================= Gallery (Our Operations) ================= */
+
+  const gal = { max: 60, maxVideoMb: 500, items: [], timer: null, busy: false };
+
+  const fmtSize = (bytes) => {
+    if (!bytes) return '';
+    return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  };
+
+  async function loadGallery() {
+    try {
+      const data = await api('/api/admin/gallery');
+      gal.max = data.max;
+      gal.maxVideoMb = data.maxVideoMb;
+      gal.items = data.items;
+      renderGallery();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function stopGalleryPoll() {
+    clearTimeout(gal.timer);
+    gal.timer = null;
+  }
+
+  /** While videos are being compressed, check every few seconds and redraw only when something finished. */
+  function scheduleGalleryPoll() {
+    stopGalleryPoll();
+    if (!gal.items.some((g) => g.status === 'processing')) return;
+    gal.timer = setTimeout(async () => {
+      if ($('view-gallery').hidden) return;
+      try {
+        const data = await api('/api/admin/gallery');
+        const wasProcessing = new Set(gal.items.filter((g) => g.status === 'processing').map((g) => g.id));
+        const key = (list) => list.map((g) => `${g.id}:${g.status}`).join();
+        const changed = key(gal.items) !== key(data.items);
+        gal.items = data.items;
+        if (!changed || gal.busy) { scheduleGalleryPoll(); return; }
+        renderGallery();
+        const finished = data.items.filter((g) => wasProcessing.has(g.id) && g.status !== 'processing');
+        if (finished.some((g) => g.status === 'ready')) toast('Video compressed and added to the website');
+        if (finished.some((g) => g.status === 'failed')) toast('A video could not be processed. See the message on it.', true);
+      } catch {
+        scheduleGalleryPoll();
+      }
+    }, 4000);
+  }
+
+  function renderGallery() {
+    const { items } = gal;
+    $('galCount').textContent = `${items.length} / ${gal.max}`;
+    $('galCount').classList.toggle('is-full', items.length >= gal.max);
+    $('galEmpty').hidden = items.length > 0;
+    const full = items.length >= gal.max;
+    $('galInput').disabled = full || gal.busy;
+    $('galDropzone').classList.toggle('is-disabled', full || gal.busy);
+    $('galHint').textContent = full
+      ? `All ${gal.max} places are used. Delete something to add more.`
+      : `Photos: JPG, PNG or WebP. Videos: MP4, MOV or WebM, up to ${gal.maxVideoMb} MB each.`;
+    const list = $('galList');
+    list.innerHTML = '';
+    items.forEach((g, i) => list.append(galleryItem(g, i, items.length)));
+    scheduleGalleryPoll();
+  }
+
+  function galleryItem(g, index, total) {
+    const node = $('galTpl').content.firstElementChild.cloneNode(true);
+    node.dataset.id = g.id;
+    const img = node.querySelector('img');
+    if (g.thumb) img.src = g.thumb;
+    img.alt = g.title || '';
+    node.querySelector('.gal-type').textContent = g.type === 'video' ? 'Video' : 'Photo';
+
+    const busy = node.querySelector('.gal-busy');
+    const info = node.querySelector('.gal-info');
+    if (g.status === 'processing') {
+      busy.hidden = false;
+      node.querySelector('.gal-busy-text').textContent = 'Compressing video… This can take a few minutes. It appears on the website when ready.';
+      info.textContent = `Uploaded ${fmtSize(g.originalSize)}. Removing the sound and shrinking it for the web.`;
+    } else if (g.status === 'failed') {
+      node.classList.add('is-failed');
+      busy.hidden = false;
+      node.querySelector('.gal-busy-text').textContent = 'Not added to the website';
+      info.textContent = g.error || 'This video could not be processed.';
+      info.classList.add('err');
+    } else {
+      const parts = [g.type === 'video' ? 'Video, no sound' : 'Photo'];
+      if (g.width && g.height) parts.push(`${g.width} × ${g.height}`);
+      if (g.size) {
+        parts.push(g.originalSize && g.originalSize > g.size
+          ? `${fmtSize(g.size)} (was ${fmtSize(g.originalSize)})`
+          : fmtSize(g.size));
+      }
+      info.textContent = parts.join(' · ');
+    }
+
+    const input = node.querySelector('.gal-title');
+    const stateEl = node.querySelector('.save-state');
+    input.value = g.title || '';
+    input.disabled = g.status === 'failed';
+    input.addEventListener('change', async () => {
+      stateEl.className = 'save-state';
+      stateEl.textContent = 'Saving…';
+      try {
+        const res = await api(`/api/admin/gallery/${g.id}`, { method: 'PATCH', body: JSON.stringify({ title: input.value }) });
+        g.title = res.item.title;
+        input.value = res.item.title;
+        stateEl.className = 'save-state ok';
+        stateEl.textContent = 'Saved';
+        setTimeout(() => { if (stateEl.textContent === 'Saved') stateEl.textContent = ''; }, 2500);
+      } catch (err) {
+        stateEl.className = 'save-state err';
+        stateEl.textContent = err.message;
+      }
+    });
+
+    const up = node.querySelector('.move-up');
+    const down = node.querySelector('.move-down');
+    up.disabled = index === 0;
+    down.disabled = index === total - 1;
+    up.addEventListener('click', () => moveGallery(index, -1));
+    down.addEventListener('click', () => moveGallery(index, 1));
+    node.querySelector('.delete-btn').addEventListener('click', () => deleteGallery(g));
+    return node;
+  }
+
+  async function moveGallery(index, dir) {
+    const ids = gal.items.map((g) => g.id);
+    const to = index + dir;
+    if (to < 0 || to >= ids.length) return;
+    [ids[index], ids[to]] = [ids[to], ids[index]];
+    try {
+      const res = await api('/api/admin/gallery/order', { method: 'PUT', body: JSON.stringify({ ids }) });
+      gal.items = res.items;
+      renderGallery();
+      const btn = document.querySelector(`.gal-item[data-id="${ids[to]}"] ${dir < 0 ? '.move-up' : '.move-down'}`);
+      (btn && !btn.disabled ? btn : document.querySelector(`.gal-item[data-id="${ids[to]}"] .gal-title`)).focus();
+      toast('Order saved');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function deleteGallery(g) {
+    const what = g.type === 'video' ? 'video' : 'photo';
+    $('confirmText').textContent = "It will be removed from the website straight away. This can't be undone.";
+    if (!(await confirmDelete(`Delete this ${what}?`, `Delete ${what}`))) return;
+    try {
+      await api(`/api/admin/gallery/${g.id}`, { method: 'DELETE' });
+      gal.items = gal.items.filter((x) => x.id !== g.id);
+      renderGallery();
+      toast(what === 'video' ? 'Video deleted' : 'Photo deleted');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  /** Sends a video with upload progress (fetch cannot report upload progress). */
+  function sendVideo(file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/admin/gallery/video?title=${encodeURIComponent(altFromName(file.name))}`);
+      xhr.setRequestHeader('Content-Type', /^video\//.test(file.type) ? file.type : 'video/mp4');
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+      xhr.onload = () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch { /* empty */ }
+        if (xhr.status === 401) { show('login'); reject(new Error('Please sign in again.')); return; }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else reject(new Error(data.error || (xhr.status === 413 ? 'The video is too large.' : `Upload failed (${xhr.status})`)));
+      };
+      xhr.onerror = () => reject(new Error('The connection was lost during the upload.'));
+      xhr.send(file);
+    });
+  }
+
+  async function uploadGallery(fileList) {
+    const all = Array.from(fileList);
+    const isImage = (f) => /^image\/(jpeg|png|webp)$/.test(f.type);
+    const isVideo = (f) => /^video\//.test(f.type) || /\.(mp4|mov|m4v|webm|mkv|avi|3gp)$/i.test(f.name);
+    const files = all.filter((f) => isImage(f) || isVideo(f));
+    const warnings = [];
+    if (all.length > files.length) warnings.push(`${all.length - files.length} file(s) skipped: use JPG, PNG or WebP photos, or MP4, MOV or WebM videos.`);
+    const room = gal.max - gal.items.length;
+    if (room <= 0) { toast(`All ${gal.max} places are used. Delete something first.`, true); return; }
+    if (files.length > room) warnings.push(`Only ${room} more fit, so ${files.length - room} file(s) were not added.`);
+    const batch = files.slice(0, room);
+    if (!batch.length) { toast(warnings.join(' ') || 'No files selected.', true); return; }
+
+    gal.busy = true;
+    renderGallery();
+    $('galProgress').hidden = false;
+    const bar = $('galBar');
+    const text = $('galProgressText');
+    let done = 0;
+    let videos = 0;
+
+    for (const [n, file] of batch.entries()) {
+      const step = (frac) => { bar.style.width = `${((n + frac) / batch.length) * 100}%`; };
+      step(0.05);
+      try {
+        if (isImage(file)) {
+          text.textContent = `Compressing ${file.name} (${n + 1} of ${batch.length})…`;
+          const img = await loadImage(file);
+          // At most 1920 px on the long side, so portrait photos are not oversized either
+          const scale = Math.min(1, 1920 / Math.max(img.naturalWidth, img.naturalHeight));
+          const image = encode(img, Math.round(img.naturalWidth * scale), 0.8);
+          const tile = encode(img, 800, 0.76);
+          step(0.4);
+          text.textContent = `Uploading ${file.name} (${n + 1} of ${batch.length})…`;
+          const res = await api('/api/admin/gallery/image', {
+            method: 'POST',
+            body: JSON.stringify({
+              title: altFromName(file.name),
+              image,
+              tile,
+              width: Math.round(img.naturalWidth * scale),
+              height: Math.round(img.naturalHeight * scale),
+              originalSize: file.size,
+            }),
+          });
+          gal.items.unshift(res.item);
+        } else {
+          if (file.size > gal.maxVideoMb * 1048576) throw new Error(`larger than ${gal.maxVideoMb} MB. Shorten it or export it at a lower quality first.`);
+          const res = await sendVideo(file, (f) => {
+            step(f * 0.95);
+            text.textContent = `Uploading ${file.name} (${n + 1} of ${batch.length}): ${Math.round(f * 100)}% of ${fmtSize(file.size)}…`;
+          });
+          gal.items.unshift(res.item);
+          videos += 1;
+        }
+        done += 1;
+        renderGallery();
+      } catch (err) {
+        warnings.push(`${file.name}: ${err.message}`);
+      }
+      step(1);
+    }
+
+    gal.busy = false;
+    $('galProgress').hidden = true;
+    bar.style.width = '0';
+    $('galInput').value = '';
+    renderGallery();
+    if (done) {
+      toast(videos
+        ? `${done} file${done > 1 ? 's' : ''} uploaded. Videos are being compressed and appear on the website when ready.`
+        : `${done} photo${done > 1 ? 's' : ''} added to the website`);
+    }
+    if (warnings.length) setTimeout(() => toast(warnings.join(' '), true), done ? 3200 : 0);
+  }
+
+  $('galInput').addEventListener('change', (e) => uploadGallery(e.target.files));
+  const gdz = $('galDropzone');
+  ['dragenter', 'dragover'].forEach((ev) => gdz.addEventListener(ev, (e) => {
+    e.preventDefault();
+    if (!$('galInput').disabled) gdz.classList.add('is-over');
+  }));
+  ['dragleave', 'drop'].forEach((ev) => gdz.addEventListener(ev, (e) => {
+    e.preventDefault();
+    gdz.classList.remove('is-over');
+  }));
+  gdz.addEventListener('drop', (e) => {
+    if ($('galInput').disabled) return;
+    if (e.dataTransfer && e.dataTransfer.files.length) uploadGallery(e.dataTransfer.files);
+  });
+  // Warn before leaving while an upload is still running
+  window.addEventListener('beforeunload', (e) => {
+    if (!gal.busy) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 
   /* ================= Products ================= */
 
@@ -1105,6 +1382,7 @@
     [
       ['#stone', 'Stone products', c.stone],
       ['#sand', 'Sand products', c.sand],
+      ['#gallery', 'Gallery photos & videos', c.gallery || 0],
       ['#settings', 'Hero banners', c.banners ? c.banners : 'Default (3)'],
     ].forEach(([href, label, n]) => {
       const li = el('li');

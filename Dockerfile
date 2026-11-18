@@ -2,6 +2,9 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# ffmpeg compresses gallery videos uploaded from the dashboard (and removes their sound)
+RUN apk add --no-cache ffmpeg
+
 # Website, dashboard and server (no npm packages needed)
 COPY . .
 

@@ -31,6 +31,8 @@ const PRODUCTS_SEED = path.join(ROOT, 'products.seed.json');
 const QUOTES_FILE = path.join(DATA_DIR, 'quotes.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
 const CONTENT_UPDATES_FILE = path.join(DATA_DIR, 'content-updates.json');
+const GALLERY_FILE = path.join(DATA_DIR, 'gallery.json');
+const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
@@ -42,6 +44,10 @@ const MAX_BODY = 14 * 1024 * 1024;          // JSON body with two base64 images
 const MAX_IMAGE = 8 * 1024 * 1024;          // decoded large image
 const MAX_IMAGE_SMALL = 3 * 1024 * 1024;    // decoded mobile image
 const MAX_IMAGE_PHONE = 4 * 1024 * 1024;    // decoded portrait phone version
+const MAX_GALLERY = 60;                      // photos + videos in Our Operations
+const MAX_GALLERY_IMAGE = 5 * 1024 * 1024;   // decoded large gallery photo (already WebP)
+const MAX_GALLERY_TILE = 2 * 1024 * 1024;    // decoded gallery tile
+const MAX_VIDEO_UPLOAD = 500 * 1024 * 1024;  // original video before compression
 const SESSION_TTL = 12 * 60 * 60 * 1000;    // 12 hours
 
 /** Shown on the homepage whenever no banner has been uploaded. */
@@ -169,7 +175,9 @@ async function serveStatic(req, res, pathname) {
   // Uploaded banners
   if (pathname.startsWith('/uploads/')) {
     const name = pathname.slice('/uploads/'.length);
-    if (!/^[a-f0-9]{24}(-sm|-ph-[a-f0-9]{8})?\.(jpg|png|webp)$/.test(name)) return notFound(res);
+    const ok1 = /^[a-f0-9]{24}(-sm|-ph-[a-f0-9]{8}|-full|-tile|-poster)?\.(jpg|png|webp)$/.test(name)
+      || /^[a-f0-9]{24}\.mp4$/.test(name);
+    if (!ok1) return notFound(res);
     const ok = await sendFile(req, res, path.join(UPLOAD_DIR, name), 'public, max-age=31536000, immutable');
     return ok || notFound(res);
   }
@@ -200,11 +208,13 @@ async function serveStatic(req, res, pathname) {
 /** The homepage, with product cards, form options and footer links built from saved products. */
 async function serveHome(req, res) {
   trackVisit(req);
-  const [html, products] = await Promise.all([
+  const [html, products, gallery] = await Promise.all([
     fsp.readFile(path.join(ROOT, 'index.html'), 'utf8'),
     readProducts(),
+    readGallery(),
   ]);
-  const body = Buffer.from(renderPage(html, products), 'utf8');
+  const ready = gallery.filter((g) => g.status === 'ready' && g.file).map(publicGalleryItem);
+  const body = Buffer.from(renderPage(html, { ...products, gallery: ready }), 'utf8');
   const etag = `W/"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 20)}"`;
   const headers = baseHeaders({
     'Content-Type': 'text/html; charset=utf-8',
@@ -322,6 +332,184 @@ function findProduct(data, id) {
     if (i !== -1) return { type, index: i, product: data[type][i] };
   }
   return null;
+}
+
+/* ---------- Gallery (Our Operations) ---------- */
+/*
+ * Photos are shrunk to WebP in the dashboard before upload (a large and a tile size).
+ * Videos are uploaded as they are, then re-encoded here with ffmpeg: H.264, at most
+ * 1280 px on the long side, 30 fps, no sound, quick-start for the web, plus a preview picture.
+ */
+
+const { spawn } = require('child_process');
+
+let galleryWriteQueue = Promise.resolve();
+const VIDEO_TMP_DIR = path.join(UPLOAD_DIR, 'incoming');
+
+async function readGallery() {
+  try {
+    const data = JSON.parse(await fsp.readFile(GALLERY_FILE, 'utf8'));
+    return Array.isArray(data.items) ? data.items : [];
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
+  }
+}
+
+function writeGallery(items) {
+  galleryWriteQueue = galleryWriteQueue.catch(() => {}).then(async () => {
+    await fsp.mkdir(DATA_DIR, { recursive: true });
+    const tmp = GALLERY_FILE + '.tmp';
+    await fsp.writeFile(tmp, JSON.stringify({ items }, null, 2));
+    await fsp.rename(tmp, GALLERY_FILE);
+  });
+  return galleryWriteQueue;
+}
+
+/** Changes one gallery item in place (re-reading the file first, so other edits are kept). */
+async function updateGalleryItem(id, patch) {
+  const items = await readGallery();
+  const item = items.find((x) => x.id === id);
+  if (!item) return null;
+  Object.assign(item, patch);
+  await writeGallery(items);
+  return item;
+}
+
+function publicGalleryItem(g) {
+  return {
+    id: g.id,
+    type: g.type,
+    title: g.title,
+    status: g.status,
+    src: g.file ? `/uploads/${g.file}` : null,
+    thumb: g.thumb ? `/uploads/${g.thumb}` : null,
+    width: g.width || null,
+    height: g.height || null,
+    size: g.size || null,
+    originalSize: g.originalSize || null,
+    error: g.error || '',
+  };
+}
+
+async function removeGalleryFiles(g) {
+  for (const f of [g.file, g.thumb].filter(Boolean)) {
+    await fsp.unlink(path.join(UPLOAD_DIR, f)).catch(() => {});
+  }
+  if (g.incoming) await fsp.unlink(path.join(VIDEO_TMP_DIR, g.incoming)).catch(() => {});
+}
+
+function runFfmpeg(args) {
+  return new Promise((resolve, reject) => {
+    let stderr = '';
+    let child;
+    try {
+      child = spawn(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-nostdin', ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
+    } catch (err) {
+      return reject(err);
+    }
+    child.stderr.on('data', (d) => { stderr = (stderr + d).slice(-2000); });
+    child.on('error', reject);
+    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(stderr.trim() || `ffmpeg exited with code ${code}`))));
+  });
+}
+
+let videoQueue = Promise.resolve();
+
+/** Queues a freshly uploaded video for compression; videos are handled one at a time. */
+function queueVideo(id) {
+  videoQueue = videoQueue.catch(() => {}).then(() => compressVideo(id)).catch((err) => console.error('Video compression failed:', err));
+  return videoQueue;
+}
+
+async function compressVideo(id) {
+  const items = await readGallery();
+  const g = items.find((x) => x.id === id);
+  if (!g || g.status !== 'processing' || !g.incoming) return;
+  const input = path.join(VIDEO_TMP_DIR, g.incoming);
+  const file = `${id}.mp4`;
+  const thumb = `${id}-poster.jpg`;
+  const out = path.join(UPLOAD_DIR, file);
+  try {
+    await runFfmpeg([
+      '-y', '-i', input,
+      '-map', '0:v:0', '-an', '-sn', '-dn', '-map_metadata', '-1',
+      '-vf', "scale='if(gte(iw,ih),min(1280,iw),-2)':'if(gte(iw,ih),-2,min(1280,ih))':flags=lanczos,format=yuv420p",
+      '-fpsmax', '30',
+      '-c:v', 'libx264', '-preset', 'medium', '-crf', '28', '-profile:v', 'high',
+      '-movflags', '+faststart',
+      out,
+    ]);
+    // Preview picture: a frame one second in (or the first frame for very short clips)
+    const posterArgs = (seek) => ['-y', ...(seek ? ['-ss', '1'] : []), '-i', out, '-frames:v', '1',
+      '-vf', "scale='if(gte(iw,ih),min(960,iw),-2)':'if(gte(iw,ih),-2,min(960,ih))',format=yuvj420p", '-q:v', '4', path.join(UPLOAD_DIR, thumb)];
+    await runFfmpeg(posterArgs(true)).catch(() => {});
+    const posterOk = await fsp.stat(path.join(UPLOAD_DIR, thumb)).then((s) => s.size > 0).catch(() => false);
+    if (!posterOk) await runFfmpeg(posterArgs(false)).catch((err) => console.error(`No preview picture for video ${id}: ${err.message}`));
+    const hasPoster = await fsp.stat(path.join(UPLOAD_DIR, thumb)).then((s) => s.size > 0).catch(() => false);
+    const size = (await fsp.stat(out)).size;
+    await fsp.unlink(input).catch(() => {});
+    const still = await updateGalleryItem(id, { status: 'ready', file, thumb: hasPoster ? thumb : null, size, incoming: null, error: '' });
+    if (!still) await removeGalleryFiles({ file, thumb }); // deleted while it was being compressed
+  } catch (err) {
+    await fsp.unlink(out).catch(() => {});
+    await fsp.unlink(path.join(UPLOAD_DIR, thumb)).catch(() => {});
+    await fsp.unlink(input).catch(() => {});
+    const missing = err.code === 'ENOENT';
+    console.error(missing ? `Video compression is not available: "${FFMPEG}" was not found.` : `Could not compress video ${id}: ${err.message}`);
+    await updateGalleryItem(id, {
+      status: 'failed',
+      incoming: null,
+      error: missing
+        ? 'Video compression is not available on the server (ffmpeg is missing). Redeploy the latest version of the site, then upload the video again.'
+        : 'This video could not be processed. Try exporting it again as MP4 and upload it again.',
+    });
+  }
+}
+
+/** After a restart, carry on with videos that were waiting for compression. */
+async function resumeGalleryJobs() {
+  const items = await readGallery();
+  for (const g of items) {
+    if (g.status !== 'processing') continue;
+    const exists = g.incoming && await fsp.stat(path.join(VIDEO_TMP_DIR, g.incoming)).then(() => true).catch(() => false);
+    if (exists) queueVideo(g.id);
+    else await updateGalleryItem(g.id, { status: 'failed', incoming: null, error: 'The upload was interrupted. Please upload this video again.' });
+  }
+}
+
+/** Streams a video upload to a temporary file, stopping if it is too large. */
+function receiveFile(req, dest, limit) {
+  return new Promise((resolve, reject) => {
+    const declared = Number(req.headers['content-length'] || 0);
+    if (declared > limit) {
+      req.resume();
+      return reject(Object.assign(new Error(`The video is too large. The limit is ${Math.round(limit / 1048576)} MB.`), { status: 413 }));
+    }
+    const ws = fs.createWriteStream(dest, { flags: 'wx' });
+    let size = 0;
+    let failed = false;
+    const fail = (err) => {
+      if (failed) return;
+      failed = true;
+      req.unpipe(ws);
+      ws.destroy();
+      fsp.unlink(dest).catch(() => {});
+      reject(err);
+    };
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) {
+        fail(Object.assign(new Error(`The video is too large. The limit is ${Math.round(limit / 1048576)} MB.`), { status: 413 }));
+        req.destroy();
+      }
+    });
+    req.on('aborted', () => fail(Object.assign(new Error('The upload was interrupted.'), { status: 400 })));
+    req.on('error', fail);
+    ws.on('error', fail);
+    ws.on('finish', () => { if (!failed) resolve(size); });
+    req.pipe(ws);
+  });
 }
 
 /* ---------- Quotation requests ---------- */
@@ -595,7 +783,7 @@ async function statsSummary() {
   const topSources = Object.entries(sources).sort((a, b) => b[1] - a[1]).slice(0, 8)
     .map(([name, visitors]) => ({ name, visitors }));
 
-  const [quotes, products, banners] = await Promise.all([readQuotes(), readProducts(), readBanners()]);
+  const [quotes, products, banners, gallery] = await Promise.all([readQuotes(), readProducts(), readBanners(), readGallery()]);
   const since30 = Date.now() - 30 * 86400000;
 
   return {
@@ -625,6 +813,7 @@ async function statsSummary() {
       stone: products.stone.length,
       sand: products.sand.length,
       banners: banners.length,
+      gallery: gallery.length,
     },
   };
 }
@@ -989,6 +1178,99 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, 200, { product: updated });
   }
 
+  /* ---------- Gallery (Our Operations) ---------- */
+  if (pathname === '/api/admin/gallery' && method === 'GET') {
+    const items = await readGallery();
+    return sendJson(res, 200, { max: MAX_GALLERY, maxVideoMb: Math.round(MAX_VIDEO_UPLOAD / 1048576), items: items.map(publicGalleryItem) });
+  }
+
+  if (pathname === '/api/admin/gallery/image' && method === 'POST') {
+    const items = await readGallery();
+    if (items.length >= MAX_GALLERY) return sendJson(res, 400, { error: `The gallery can hold up to ${MAX_GALLERY} photos and videos. Delete one first.` });
+    const body = await readJson(req);
+    const full = decodeImage(body.image, MAX_GALLERY_IMAGE);
+    const tile = decodeImage(body.tile, MAX_GALLERY_TILE);
+    if (!full || !tile) return sendJson(res, 400, { error: 'Please upload a JPG, PNG or WebP photo.' });
+    await fsp.mkdir(UPLOAD_DIR, { recursive: true });
+    const id = crypto.randomBytes(12).toString('hex');
+    const file = `${id}-full.${full.ext}`;
+    const thumb = `${id}-tile.${tile.ext}`;
+    await fsp.writeFile(path.join(UPLOAD_DIR, file), full.buf);
+    await fsp.writeFile(path.join(UPLOAD_DIR, thumb), tile.buf);
+    const item = {
+      id, type: 'image', status: 'ready', file, thumb,
+      title: cleanText(body.title, 100),
+      width: Math.min(10000, Math.max(1, Math.round(Number(body.width) || 0))) || null,
+      height: Math.min(10000, Math.max(1, Math.round(Number(body.height) || 0))) || null,
+      size: full.buf.length,
+      originalSize: Math.max(0, Math.round(Number(body.originalSize) || 0)) || null,
+      createdAt: new Date().toISOString(),
+    };
+    const latest = await readGallery();
+    latest.unshift(item);
+    await writeGallery(latest);
+    return sendJson(res, 201, { item: publicGalleryItem(item) });
+  }
+
+  if (pathname === '/api/admin/gallery/video' && method === 'POST') {
+    if (!/^video\//.test(req.headers['content-type'] || '')) {
+      req.resume();
+      return sendJson(res, 415, { error: 'Please upload a video file (MP4, MOV, WebM…).' });
+    }
+    const items = await readGallery();
+    if (items.length >= MAX_GALLERY) {
+      req.resume();
+      return sendJson(res, 400, { error: `The gallery can hold up to ${MAX_GALLERY} photos and videos. Delete one first.` });
+    }
+    await fsp.mkdir(VIDEO_TMP_DIR, { recursive: true });
+    const id = crypto.randomBytes(12).toString('hex');
+    const incoming = `${id}.upload`;
+    const originalSize = await receiveFile(req, path.join(VIDEO_TMP_DIR, incoming), MAX_VIDEO_UPLOAD);
+    if (!originalSize) {
+      await fsp.unlink(path.join(VIDEO_TMP_DIR, incoming)).catch(() => {});
+      return sendJson(res, 400, { error: 'The video file is empty.' });
+    }
+    const title = cleanText(new URL(req.url, 'http://x').searchParams.get('title'), 100);
+    const item = {
+      id, type: 'video', status: 'processing', incoming, file: null, thumb: null,
+      title, size: null, originalSize, createdAt: new Date().toISOString(),
+    };
+    const latest = await readGallery();
+    latest.unshift(item);
+    await writeGallery(latest);
+    queueVideo(id);
+    return sendJson(res, 202, { item: publicGalleryItem(item) });
+  }
+
+  if (pathname === '/api/admin/gallery/order' && method === 'PUT') {
+    const body = await readJson(req);
+    const items = await readGallery();
+    const ids = Array.isArray(body.ids) ? body.ids : [];
+    if (ids.length !== items.length || !ids.every((id) => items.some((g) => g.id === id))) {
+      return sendJson(res, 400, { error: 'The gallery changed. Reload the page and try again.' });
+    }
+    const sorted = ids.map((id) => items.find((g) => g.id === id));
+    await writeGallery(sorted);
+    return sendJson(res, 200, { items: sorted.map(publicGalleryItem) });
+  }
+
+  const mg = /^\/api\/admin\/gallery\/([a-f0-9]{24})$/.exec(pathname);
+  if (mg && method === 'PATCH') {
+    const body = await readJson(req);
+    const item = await updateGalleryItem(mg[1], { title: cleanText(body.title, 100) });
+    if (!item) return sendJson(res, 404, { error: 'Not found. Reload the page and try again.' });
+    return sendJson(res, 200, { item: publicGalleryItem(item) });
+  }
+
+  if (mg && method === 'DELETE') {
+    const items = await readGallery();
+    const item = items.find((g) => g.id === mg[1]);
+    if (!item) return sendJson(res, 404, { error: 'Not found. Reload the page and try again.' });
+    await writeGallery(items.filter((g) => g !== item));
+    await removeGalleryFiles(item);
+    return sendJson(res, 200, { ok: true });
+  }
+
   // Phone version (portrait image shown on screens up to 767px wide)
   const mp = /^\/api\/admin\/banners\/([a-f0-9]{24})\/phone$/.exec(pathname);
   if (mp && (method === 'PUT' || method === 'DELETE')) {
@@ -1068,8 +1350,12 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// Video uploads can be large and slow on mobile connections, so give requests up to an hour
+server.requestTimeout = 60 * 60 * 1000;
+
 Promise.all([checkStorage(), loadStats()])
   .then(() => applyContentUpdates())
+  .then(() => resumeGalleryJobs())
   .catch((err) => console.error('Startup step failed:', err))
   .finally(() => server.listen(PORT, () => {
   console.log(`F B Group site running on http://localhost:${PORT}`);

@@ -60,6 +60,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19c3-6 6-9 9-9s6 3 9 9Z"/><path d="M8 14h.01M12 13h.01M15 15h.01"/></svg>
           Sand products
         </a>
+        <a href="#gallery" data-view="gallery">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/></svg>
+          Gallery
+        </a>
         <a href="#quotes" data-view="quotes">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 4Z"/><path d="M8 9h8M8 12h5"/></svg>
           Quotations
@@ -96,6 +100,7 @@
       <a href="#overview" data-view="overview">Home</a>
       <a href="#stone" data-view="stone">Stone</a>
       <a href="#sand" data-view="sand">Sand</a>
+      <a href="#gallery" data-view="gallery">Gallery</a>
       <a href="#quotes" data-view="quotes">Quotes <span class="nav-badge" data-new-count hidden></span></a>
       <a href="#settings" data-view="settings">Settings</a>
     </nav>
@@ -274,6 +279,37 @@
       </section>
      </div>
 
+     <!-- Gallery: photos and videos in the homepage's Our Operations section -->
+     <div class="view" id="view-gallery" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Gallery</h1>
+          <p>Photos and videos in the Our Operations section of the homepage. Everything is compressed so the website stays fast, and videos are saved without sound.</p>
+        </div>
+        <span class="count-pill" id="galCount">0 / 60</span>
+      </div>
+      <section class="panel" aria-labelledby="galUploadTitle">
+        <h2 id="galUploadTitle" class="panel-title">Add photos and videos</h2>
+        <label class="dropzone" id="galDropzone" for="galInput">
+          <input type="file" id="galInput" accept="image/jpeg,image/png,image/webp,video/*" multiple />
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <span class="dz-main"><strong>Choose photos or videos</strong> or drag them here</span>
+          <span class="dz-hint" id="galHint">Photos: JPG, PNG or WebP. Videos: MP4, MOV or WebM, up to 500 MB each.</span>
+        </label>
+        <div class="upload-progress" id="galProgress" hidden>
+          <div class="bar"><span id="galBar"></span></div>
+          <p id="galProgressText">Uploading…</p>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="galListTitle">
+        <div class="panel-head">
+          <h2 id="galListTitle" class="panel-title">On the website</h2>
+          <span class="panel-note">Shown in this order. New uploads appear first. Changes go live as soon as they save.</span>
+        </div>
+        <ol class="gal-list" id="galList"></ol>
+        <p class="panel-text" id="galEmpty" hidden>Nothing uploaded yet. The website shows "Photos and videos of our operations will be shown here soon" in this section.</p>
+      </section>
+     </div>
      <!-- Quotation requests from the homepage form -->
      <div class="view" id="view-quotes" hidden>
       <div class="page-head">
@@ -371,6 +407,32 @@
     </li>
   </template>
 
+  <!-- Gallery item template -->
+  <template id="galTpl">
+    <li class="gal-item">
+      <div class="gal-media">
+        <img alt="" />
+        <span class="gal-type"></span>
+        <span class="gal-busy" hidden><span class="spinner" aria-hidden="true"></span><span class="gal-busy-text">Compressing…</span></span>
+      </div>
+      <div class="gal-body">
+        <label class="alt-label">Caption
+          <input type="text" class="alt-input gal-title" maxlength="100" placeholder="e.g. Unloading at Meghna Ghat" />
+        </label>
+        <p class="gal-info"></p>
+        <div class="banner-actions">
+          <button type="button" class="icon-btn move-up" aria-label="Move earlier">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button type="button" class="icon-btn move-down" aria-label="Move later">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <span class="save-state" aria-live="polite"></span>
+          <button type="button" class="btn btn-danger btn-sm delete-btn">Delete</button>
+        </div>
+      </div>
+    </li>
+  </template>
   <!-- Delete confirmation -->
   <dialog class="dialog" id="confirmDialog" aria-labelledby="confirmTitle">
     <form method="dialog">

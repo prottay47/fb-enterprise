@@ -84,6 +84,28 @@ function renderOptions(data, indent = '                ') {
   return out.join('\n');
 }
 
+/** Our Operations: photo and video tiles uploaded in the dashboard. Videos load only when opened. */
+function renderGallery(items, indent = '        ') {
+  if (!items.length) {
+    return `${indent}<p class="gallery-empty">Photos and videos of our operations will be shown here soon.</p>`;
+  }
+  return items.map((g, i) => {
+    const title = g.title || 'F B Group operations';
+    const src = imgUrl(g.src || '');
+    const thumb = imgUrl(g.thumb || '');
+    if (!src) return '';
+    if (g.type === 'video') {
+      const poster = thumb ? ` data-poster="${esc(thumb)}"` : '';
+      return `${indent}<div class="gallery-item" data-gallery-index="${i}" data-type="video" data-alt="${esc(title)}">
+${indent}  <video src="${esc(src)}"${poster} loop muted playsinline preload="none" aria-label="${esc(title)}"></video>
+${indent}</div>`;
+    }
+    const size = g.width && g.height ? ` width="${Number(g.width)}" height="${Number(g.height)}"` : '';
+    return `${indent}<div class="gallery-item" data-gallery-index="${i}" data-type="image" data-alt="${esc(title)}">
+${indent}  <img src="${esc(thumb || src)}"${size} data-full="${esc(src)}" loading="lazy" decoding="async" alt="${esc(title)}" />
+${indent}</div>`;
+  }).filter(Boolean).join('\n');
+}
 
 /** Replaces each marked region of the page with freshly built HTML. */
 function renderPage(html, data) {
@@ -91,6 +113,7 @@ function renderPage(html, data) {
     'PRODUCTS:stone': renderCards('stone', data.stone || []),
     'PRODUCTS:sand': renderCards('sand', data.sand || []),
     'PRODUCT-OPTIONS': renderOptions(data),
+    GALLERY: renderGallery(data.gallery || []),
   };
   let out = html;
   for (const [name, content] of Object.entries(regions)) {
