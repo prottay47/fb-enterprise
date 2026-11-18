@@ -1990,8 +1990,10 @@ footer {
 .leader-grid {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 24px;
+  max-width: 960px;
+  margin-inline: auto;
 }
 
 .leader-card {
@@ -2055,14 +2057,8 @@ footer {
   .leader-name { align-self: start; }
 }
 
-@media (max-width: 1024px) {
-  .leader-grid { grid-template-columns: repeat(2, 1fr); }
-  .leader-card:last-child { grid-column: 1 / -1; }
-}
-
 @media (max-width: 640px) {
   .leader-grid { grid-template-columns: 1fr; gap: 16px; }
-  .leader-card:last-child { grid-column: auto; }
   .leader-card { min-height: 0; padding: 28px 24px; }
   .leader-name { font-size: 1.4rem; }
   .leader-role { font-size: 0.78rem; letter-spacing: 1px; }
